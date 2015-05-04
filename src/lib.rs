@@ -135,6 +135,15 @@ impl FileTime {
     /// Windows platforms time stamps are relative to January 1, 1601.
     pub fn seconds(&self) -> u64 { self.seconds }
 
+    /// Returns the whole number of seconds represented by this timestamp,
+    /// relative to the Unix epoch start of January 1, 1970.
+    ///
+    /// Note that this does not return the same value as `seconds` for Windows
+    /// platforms as seconds are relative to a different date there.
+    pub fn seconds_relative_to_1970(&self) -> u64 {
+        self.seconds - if cfg!(windows) {11644473600} else {0}
+    }
+
     /// Returns the nanosecond precision of this timestamp.
     ///
     /// The returned value is always less than one billion and represents a
