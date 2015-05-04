@@ -1,4 +1,9 @@
 #![feature(metadata_ext)]
+#![cfg_attr(any(target_os = "bitrig",
+                target_os = "freebsd",
+                target_os = "ios",
+                target_os = "macos",
+                target_os = "openbsd"), feature(raw_ext))]
 
 #[cfg(unix)] use std::os::unix::prelude::*;
 #[cfg(windows)] use std::os::windows::prelude::*;
@@ -78,8 +83,8 @@ impl FileTime {
                         use std::os::$i::fs::MetadataExt;
                     )*
                     let raw = meta.as_raw_stat();
-                    Some(FileTime::from_os_repr(raw.birthtime as u64,
-                                                raw.birthtime_nsec as u32))
+                    Some(FileTime::from_os_repr(raw.st_birthtime as u64,
+                                                raw.st_birthtime_nsec as u32))
                 }
 
                 #[cfg(all(not(windows),
@@ -91,7 +96,6 @@ impl FileTime {
         }
 
         birthtim! {
-            ("macos", macos),
             ("bitrig", bitrig),
             ("freebsd", freebsd),
             ("ios", ios),
