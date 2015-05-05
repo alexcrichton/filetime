@@ -105,7 +105,7 @@ impl FileTime {
 
         #[cfg(windows)]
         fn imp(meta: &fs::Metadata) -> Option<FileTime> {
-            FileTime::from_os_repr(meta.last_access_time())
+            Some(FileTime::from_os_repr(meta.last_access_time()))
         }
         imp(meta)
     }
