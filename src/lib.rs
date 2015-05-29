@@ -121,11 +121,8 @@ impl FileTime {
     }
 
     #[cfg(unix)]
-    fn from_os_repr(seconds: u64, _nanos: u32) -> FileTime {
-        // FIXME: currently there is a bug in the standard library where the
-        //        nanosecond accessor is just accessing the seconds again, once
-        //        that bug is fixed this should take nanoseconds into account.
-        FileTime { seconds: seconds, nanos: 0 }
+    fn from_os_repr(seconds: u64, nanos: u32) -> FileTime {
+        FileTime { seconds: seconds, nanos: nanos }
     }
 
     /// Returns the whole number of seconds represented by this timestamp.
