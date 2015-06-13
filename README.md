@@ -5,6 +5,11 @@
 
 [Documentation](http://alexcrichton.com/filetime/filetime/index.html)
 
+A helper library for inspecting the various timestamps of files in Rust. This
+library takes into account cross-platform differences in terms of where the
+timestamps are located, what they are called, and how to convert them into a
+platform-independent representation.
+
 ```toml
 # Cargo.toml
 [dependencies]

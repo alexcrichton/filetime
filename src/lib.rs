@@ -1,9 +1,38 @@
-#![feature(metadata_ext)]
-#![cfg_attr(any(target_os = "bitrig",
-                target_os = "freebsd",
-                target_os = "ios",
-                target_os = "macos",
-                target_os = "openbsd"), feature(raw_ext))]
+//! Timestamps for files in Rust
+//!
+//! This library provides platform-agnostic inspection of the various timestamps
+//! present in the standard `fs::Metadata` structure.
+//!
+//! # Installation
+//!
+//! Add this to you `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! filetime = "0.1"
+//! ```
+//!
+//! # Usage
+//!
+//! ```no_run
+//! use std::fs;
+//! use filetime::FileTime;
+//!
+//! let metadata = fs::metadata("foo.txt").unwrap();
+//!
+//! let mtime = FileTime::from_last_modification_time(&metadata);
+//! println!("{}", mtime);
+//!
+//! let atime = FileTime::from_last_access_time(&metadata);
+//! assert!(mtime < atime);
+//!
+//! // Inspect values that can be interpreted across platforms
+//! println!("{}", mtime.seconds_relative_to_1970());
+//! println!("{}", mtime.nanoseconds());
+//!
+//! // Print the platform-specific value of seconds
+//! println!("{}", mtime.seconds());
+//! ```
 
 #[cfg(unix)] use std::os::unix::prelude::*;
 #[cfg(windows)] use std::os::windows::prelude::*;
@@ -38,7 +67,6 @@ impl FileTime {
     pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
         #[cfg(unix)]
         fn imp(meta: &fs::Metadata) -> FileTime {
-            let meta = meta.as_raw();
             FileTime::from_os_repr(meta.mtime() as u64, meta.mtime_nsec() as u32)
         }
         #[cfg(windows)]
@@ -56,7 +84,6 @@ impl FileTime {
     pub fn from_last_access_time(meta: &fs::Metadata) -> FileTime {
         #[cfg(unix)]
         fn imp(meta: &fs::Metadata) -> FileTime {
-            let meta = meta.as_raw();
             FileTime::from_os_repr(meta.atime() as u64, meta.atime_nsec() as u32)
         }
         #[cfg(windows)]
