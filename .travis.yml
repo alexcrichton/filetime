@@ -1,6 +1,8 @@
 language: rust
 rust:
   - nightly
+  - beta
+  - 1.1.0
 sudo: false
 script:
   - cargo build --verbose
