@@ -34,11 +34,17 @@
 //! println!("{}", mtime.seconds());
 //! ```
 
+extern crate libc;
+extern crate winapi;
+extern crate kernel32;
+
 #[cfg(unix)] use std::os::unix::prelude::*;
 #[cfg(windows)] use std::os::windows::prelude::*;
 
 use std::fmt;
 use std::fs;
+use std::io;
+use std::path::Path;
 
 /// A helper structure to represent a timestamp for a file.
 ///
@@ -57,6 +63,20 @@ impl FileTime {
     /// Useful for creating the base of a cmp::max chain of times.
     pub fn zero() -> FileTime {
         FileTime { seconds: 0, nanos: 0 }
+    }
+
+    /// Creates a new instance of `FileTime` with a number of seconds and
+    /// nanoseconds relative to January 1, 1970.
+    ///
+    /// Note that this is typically the relative point that Unix time stamps are
+    /// from, but on Windows the native time stamp is relative to January 1,
+    /// 1601 so the return value of `seconds` from the returned `FileTime`
+    /// instance may not be the same as that passed in.
+    pub fn from_seconds_since_1970(seconds: u64, nanos: u32) -> FileTime {
+        FileTime {
+            seconds: seconds + if cfg!(windows) {11644473600} else {0},
+            nanos: nanos,
+        }
     }
 
     /// Creates a new timestamp from the last modification time listed in the
@@ -179,5 +199,98 @@ impl FileTime {
 impl fmt::Display for FileTime {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}.{:09}s", self.seconds, self.nanos)
+    }
+}
+
+/// Set the last access and modification times for a file on the filesystem.
+///
+/// This function will set the `atime` and `mtime` metadata fields for a file
+/// on the local filesystem, returning any error encountered.
+pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
+                         -> io::Result<()> where P: AsRef<Path> {
+    set_file_times_(p.as_ref(), atime, mtime)
+}
+
+#[cfg(unix)]
+fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    use std::ffi::CString;
+    use libc::{timeval, time_t, c_char, c_int, suseconds_t};
+
+    extern {
+        fn utimes(name: *const c_char, times: *const timeval) -> c_int;
+    }
+
+    let times = [to_timeval(&atime), to_timeval(&mtime)];
+    let p = try!(CString::new(p.as_os_str().as_bytes()));
+    return unsafe {
+        if utimes(p.as_ptr(), times.as_ptr()) == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    };
+
+    fn to_timeval(ft: &FileTime) -> timeval {
+        timeval {
+            tv_sec: ft.seconds() as time_t,
+            tv_usec: (ft.nanoseconds() / 1000) as suseconds_t,
+        }
+    }
+}
+
+#[cfg(windows)]
+fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    use std::fs::OpenOptions;
+    use winapi::{FILETIME, DWORD};
+
+    let f = try!(OpenOptions::new().write(true).open(p));
+    let atime = to_filetime(&atime);
+    let mtime = to_filetime(&mtime);
+    return unsafe {
+        let ret = kernel32::SetFileTime(f.as_raw_handle() as *mut _,
+                                        0 as *const _,
+                                        &atime, &mtime);
+        if ret != 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    };
+
+    fn to_filetime(ft: &FileTime) -> FILETIME {
+        let intervals = ft.seconds() * (1_000_000_000 / 100) +
+                        ((ft.nanoseconds() as u64) / 100);
+        FILETIME {
+            dwLowDateTime: intervals as DWORD,
+            dwHighDateTime: (intervals >> 32) as DWORD,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate tempdir;
+
+    use std::fs::{self, File};
+    use self::tempdir::TempDir;
+    use super::{FileTime, set_file_times};
+
+    #[test]
+    fn set_file_times_test() {
+        let td = TempDir::new("filetime").unwrap();
+        let path = td.path().join("foo.txt");
+        File::create(&path).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        let atime = FileTime::from_last_access_time(&metadata);
+        set_file_times(&path, atime, mtime).unwrap();
+
+        let new_mtime = FileTime::from_seconds_since_1970(10_000, 0);
+        set_file_times(&path, atime, new_mtime).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, new_mtime);
     }
 }
