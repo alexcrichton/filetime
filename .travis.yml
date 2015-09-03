@@ -21,3 +21,6 @@ notifications:
 env:
   global:
     secure: dsIj09BQvGF872zKmqzG+WwCl7gfqwsnxcm3GZlAMgyLYm4juvHOwCRhIERCN3BCxPvdlSRKhe9Rwmp1RkiKuqTK3ITUTAy29Maf2vuL1T+zcdpZE0t6JSCU1gbEwzCA2foB1jzgy7Q47EzeJusmGNwibscjYmXKlH6JCFwTobM=
+os:
+  - linux
+  - osx
