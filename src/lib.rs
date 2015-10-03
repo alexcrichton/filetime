@@ -51,7 +51,7 @@ use std::path::Path;
 /// The actual value contined within is platform-specific and does not have the
 /// same meaning across platforms, but comparisons and stringification can be
 /// significant among the same platform.
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Copy, Clone)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Copy, Clone, Hash)]
 pub struct FileTime {
     seconds: u64,
     nanos: u32,
