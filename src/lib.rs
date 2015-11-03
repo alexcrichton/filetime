@@ -214,11 +214,7 @@ pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
 #[cfg(unix)]
 fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     use std::ffi::CString;
-    use libc::{timeval, time_t, c_char, c_int, suseconds_t};
-
-    extern {
-        fn utimes(name: *const c_char, times: *const timeval) -> c_int;
-    }
+    use libc::{timeval, time_t, suseconds_t, utimes};
 
     let times = [to_timeval(&atime), to_timeval(&mtime)];
     let p = try!(CString::new(p.as_os_str().as_bytes()));
