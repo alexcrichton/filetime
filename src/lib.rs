@@ -219,7 +219,7 @@ fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()>
     let times = [to_timeval(&atime), to_timeval(&mtime)];
     let p = try!(CString::new(p.as_os_str().as_bytes()));
     return unsafe {
-        if utimes(p.as_ptr(), times.as_ptr()) == 0 {
+        if utimes(p.as_ptr() as *const _, times.as_ptr()) == 0 {
             Ok(())
         } else {
             Err(io::Error::last_os_error())
