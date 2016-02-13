@@ -35,8 +35,6 @@
 //! ```
 
 extern crate libc;
-extern crate winapi;
-extern crate kernel32;
 
 #[cfg(unix)] use std::os::unix::prelude::*;
 #[cfg(windows)] use std::os::windows::prelude::*;
@@ -235,17 +233,32 @@ fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()>
 }
 
 #[cfg(windows)]
+#[allow(bad_style)]
 fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     use std::fs::OpenOptions;
-    use winapi::{FILETIME, DWORD};
+
+    type BOOL = i32;
+    type HANDLE = *mut u8;
+    type DWORD = u32;
+    #[repr(C)]
+    struct FILETIME {
+        dwLowDateTime: u32,
+        dwHighDateTime: u32,
+    }
+    extern "system" {
+        fn SetFileTime(hFile: HANDLE,
+                       lpCreationTime: *const FILETIME,
+                       lpLastAccessTime: *const FILETIME,
+                       lpLastWriteTime: *const FILETIME) -> BOOL;
+    }
 
     let f = try!(OpenOptions::new().write(true).open(p));
     let atime = to_filetime(&atime);
     let mtime = to_filetime(&mtime);
     return unsafe {
-        let ret = kernel32::SetFileTime(f.as_raw_handle() as *mut _,
-                                        0 as *const _,
-                                        &atime, &mtime);
+        let ret = SetFileTime(f.as_raw_handle() as *mut _,
+                              0 as *const _,
+                              &atime, &mtime);
         if ret != 0 {
             Ok(())
         } else {

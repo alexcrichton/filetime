@@ -14,8 +14,6 @@ Platform-agnostic accessors of timestamps in File metadata
 
 [dependencies]
 libc = "0.2"
-kernel32-sys = "0.2"
-winapi = "0.2"
 
 [dev-dependencies]
 tempdir = "0.3"
