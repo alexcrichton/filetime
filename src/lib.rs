@@ -5,7 +5,7 @@
 //!
 //! # Installation
 //!
-//! Add this to you `Cargo.toml`:
+//! Add this to your `Cargo.toml`:
 //!
 //! ```toml
 //! [dependencies]
