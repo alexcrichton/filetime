@@ -148,7 +148,8 @@ impl FileTime {
             ("freebsd", freebsd),
             ("ios", ios),
             ("macos", macos),
-            ("openbsd", openbsd)
+            ("openbsd", openbsd),
+            ("dragonfly", dragonfly)
         }
 
         #[cfg(windows)]
