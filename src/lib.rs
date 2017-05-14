@@ -36,8 +36,11 @@
 
 extern crate libc;
 
+#[cfg(windows)] extern crate winapi;
 #[cfg(unix)] use std::os::unix::prelude::*;
+#[cfg(unix)] use libc::{c_char, c_int, timeval};
 #[cfg(windows)] use std::os::windows::prelude::*;
+#[cfg(windows)] use std::fs::OpenOptions;
 
 use std::fmt;
 use std::fs;
@@ -209,20 +212,52 @@ pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
     set_file_times_(p.as_ref(), atime, mtime)
 }
 
+/// Set the last access and modification times for a file on the filesystem.
+/// This function does not follow symlink.
+///
+/// This function will set the `atime` and `mtime` metadata fields for a file
+/// on the local filesystem, returning any error encountered.
+pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
+                                 -> io::Result<()> where P: AsRef<Path> {
+    set_symlink_file_times_(p.as_ref(), atime, mtime)
+}
+
 #[cfg(unix)]
 fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    use libc::utimes;
+    fn set_time(filename: *const c_char, times: *const timeval) -> c_int {
+        unsafe {
+            utimes(filename, times)
+        }
+    }
+    set_file_times_u(p, atime, mtime, set_time)
+}
+
+#[cfg(unix)]
+fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    use libc::lutimes;
+    fn set_time(filename: *const c_char, times: *const timeval) -> c_int {
+        unsafe {
+            lutimes(filename, times)
+        }
+    }
+    set_file_times_u(p, atime, mtime, set_time)
+}
+
+#[cfg(unix)]
+fn set_file_times_u<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes: ST) -> io::Result<()>
+    where ST: Fn(*const c_char, *const timeval) -> c_int
+{
     use std::ffi::CString;
-    use libc::{timeval, time_t, suseconds_t, utimes};
+    use libc::{timeval, time_t, suseconds_t};
 
     let times = [to_timeval(&atime), to_timeval(&mtime)];
     let p = try!(CString::new(p.as_os_str().as_bytes()));
-    return unsafe {
-        if utimes(p.as_ptr() as *const _, times.as_ptr()) == 0 {
+    return if utimes(p.as_ptr() as *const _, times.as_ptr()) == 0 {
             Ok(())
         } else {
             Err(io::Error::last_os_error())
-        }
-    };
+        };
 
     fn to_timeval(ft: &FileTime) -> timeval {
         timeval {
@@ -235,8 +270,23 @@ fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()>
 #[cfg(windows)]
 #[allow(bad_style)]
 fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use std::fs::OpenOptions;
+    set_file_times_w(p, atime, mtime, OpenOptions::new())
+}
 
+#[cfg(windows)]
+#[allow(bad_style)]
+fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    use std::os::windows::fs::OpenOptionsExt;
+    use winapi::winbase::FILE_FLAG_OPEN_REPARSE_POINT;
+
+    let mut options = OpenOptions::new();
+    options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    set_file_times_w(p, atime, mtime, options)
+}
+
+#[cfg(windows)]
+#[allow(bad_style)]
+fn set_file_times_w(p: &Path, atime: FileTime, mtime: FileTime, mut options: OpenOptions) -> io::Result<()> {
     type BOOL = i32;
     type HANDLE = *mut u8;
     type DWORD = u32;
@@ -252,7 +302,7 @@ fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()>
                        lpLastWriteTime: *const FILETIME) -> BOOL;
     }
 
-    let f = try!(OpenOptions::new().write(true).open(p));
+    let f = try!(options.write(true).open(p));
     let atime = to_filetime(&atime);
     let mtime = to_filetime(&mtime);
     return unsafe {
@@ -276,13 +326,35 @@ fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()>
     }
 }
 
+
+
 #[cfg(test)]
 mod tests {
     extern crate tempdir;
 
+    use std::io;
+    use std::path::Path;
     use std::fs::{self, File};
     use self::tempdir::TempDir;
-    use super::{FileTime, set_file_times};
+    use super::{FileTime, set_file_times, set_symlink_file_times};
+
+    #[cfg(unix)]
+    fn make_symlink<P,Q>(src: P, dst: Q) -> io::Result<()>
+        where P: AsRef<Path>,
+              Q: AsRef<Path>,
+    {
+        use std::os::unix::fs::symlink;
+        symlink(src, dst)
+    }
+
+    #[cfg(windows)]
+    fn make_symlink<P,Q>(src: P, dst: Q) -> io::Result<()>
+        where P: AsRef<Path>,
+              Q: AsRef<Path>,
+    {
+        use std::os::windows::fs::symlink_file;
+        symlink_file(src, dst)
+    }
 
     #[test]
     fn set_file_times_test() {
@@ -326,5 +398,47 @@ mod tests {
         let metadata = fs::symlink_metadata(&spath).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, smtime);
+    }
+
+    #[test]
+    fn set_symlink_file_times_test() {
+        let td = TempDir::new("filetime").unwrap();
+        let path = td.path().join("foo.txt");
+        File::create(&path).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        let atime = FileTime::from_last_access_time(&metadata);
+        set_symlink_file_times(&path, atime, mtime).unwrap();
+
+        let new_mtime = FileTime::from_seconds_since_1970(10_000, 0);
+        set_symlink_file_times(&path, atime, new_mtime).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, new_mtime);
+
+        let spath = td.path().join("bar.txt");
+        make_symlink(&path, &spath).unwrap();
+
+        let metadata = fs::symlink_metadata(&spath).unwrap();
+        let smtime = FileTime::from_last_modification_time(&metadata);
+        let satime = FileTime::from_last_access_time(&metadata);
+        set_symlink_file_times(&spath, smtime, satime).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, new_mtime);
+
+        let new_smtime = FileTime::from_seconds_since_1970(20_000, 0);
+        set_symlink_file_times(&spath, atime, new_smtime).unwrap();
+
+        let metadata = fs::metadata(&spath).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, new_mtime);
+
+        let metadata = fs::symlink_metadata(&spath).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, new_smtime);
     }
 }
