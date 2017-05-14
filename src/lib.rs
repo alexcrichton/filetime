@@ -301,5 +301,30 @@ mod tests {
         let metadata = fs::metadata(&path).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, new_mtime);
+
+        let spath = td.path().join("bar.txt");
+        make_symlink(&path, &spath).unwrap();
+        let metadata = fs::symlink_metadata(&spath).unwrap();
+        let smtime = FileTime::from_last_modification_time(&metadata);
+
+        set_file_times(&spath, atime, mtime).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let cur_mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, cur_mtime);
+
+        let metadata = fs::symlink_metadata(&spath).unwrap();
+        let cur_mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(smtime, cur_mtime);
+
+        set_file_times(&spath, atime, new_mtime).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, new_mtime);
+
+        let metadata = fs::symlink_metadata(&spath).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, smtime);
     }
 }
