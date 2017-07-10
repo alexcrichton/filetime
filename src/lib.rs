@@ -35,9 +35,11 @@
 //! ```
 
 extern crate libc;
+#[cfg(target_os = "redox")]
+extern crate syscall;
 
 #[cfg(windows)] extern crate winapi;
-#[cfg(unix)] use std::os::unix::prelude::*;
+#[cfg(any(unix, target_os = "redox"))] use std::os::unix::prelude::*;
 #[cfg(unix)] use libc::{c_char, c_int, timeval};
 #[cfg(windows)] use std::os::windows::prelude::*;
 #[cfg(windows)] use std::fs::OpenOptions;
@@ -86,7 +88,7 @@ impl FileTime {
     /// The returned value corresponds to the `mtime` field of `stat` on Unix
     /// platforms and the `ftLastWriteTime` field on Windows platforms.
     pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
-        #[cfg(unix)]
+        #[cfg(any(unix, target_os = "redox"))]
         fn imp(meta: &fs::Metadata) -> FileTime {
             FileTime::from_os_repr(meta.mtime() as u64, meta.mtime_nsec() as u32)
         }
@@ -103,7 +105,7 @@ impl FileTime {
     /// The returned value corresponds to the `atime` field of `stat` on Unix
     /// platforms and the `ftLastAccessTime` field on Windows platforms.
     pub fn from_last_access_time(meta: &fs::Metadata) -> FileTime {
-        #[cfg(unix)]
+        #[cfg(any(unix, target_os = "redox"))]
         fn imp(meta: &fs::Metadata) -> FileTime {
             FileTime::from_os_repr(meta.atime() as u64, meta.atime_nsec() as u32)
         }
@@ -168,7 +170,7 @@ impl FileTime {
         }
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "redox"))]
     fn from_os_repr(seconds: u64, nanos: u32) -> FileTime {
         FileTime { seconds: seconds, nanos: nanos }
     }
@@ -264,6 +266,40 @@ fn set_file_times_u<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes: ST) 
             tv_sec: ft.seconds() as time_t,
             tv_usec: (ft.nanoseconds() / 1000) as suseconds_t,
         }
+    }
+}
+
+#[cfg(target_os = "redox")]
+fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_WRONLY)
+        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
+    set_file_times_redox(fd, atime, mtime)
+}
+
+#[cfg(target_os = "redox")]
+fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_WRONLY | syscall::O_NOFOLLOW)
+        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
+    set_file_times_redox(fd, atime, mtime)
+}
+
+#[cfg(target_os = "redox")]
+fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    use syscall::TimeSpec;
+
+    fn to_timespec(ft: &FileTime) -> TimeSpec {
+        syscall::TimeSpec {
+            tv_sec: ft.seconds() as i64,
+            tv_nsec: ft.nanoseconds() as i32
+        }
+    }
+
+    let times = [to_timespec(&atime), to_timespec(&mtime)];
+    let res = syscall::futimens(fd, &times);
+    let _ = syscall::close(fd);
+    match res {
+        Ok(_) => Ok(()),
+        Err(err) => Err(io::Error::from_raw_os_error(err.errno))
     }
 }
 
