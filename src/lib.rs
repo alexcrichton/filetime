@@ -271,14 +271,14 @@ fn set_file_times_u<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes: ST) 
 
 #[cfg(target_os = "redox")]
 fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_WRONLY)
+    let fd = syscall::open(p.as_os_str().as_bytes(), 0)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     set_file_times_redox(fd, atime, mtime)
 }
 
 #[cfg(target_os = "redox")]
 fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_WRONLY | syscall::O_NOFOLLOW)
+    let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_NOFOLLOW)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     set_file_times_redox(fd, atime, mtime)
 }
