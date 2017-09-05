@@ -35,32 +35,8 @@
 //! ```
 
 extern crate libc;
-#[cfg(target_os = "redox")]
-extern crate syscall;
 
-#[cfg(windows)] extern crate winapi;
 #[cfg(any(unix, target_os = "redox"))] use std::os::unix::prelude::*;
-
-#[cfg(any(target_os = "macos",
-          target_os = "ios",
-          target_os = "freebsd",
-          target_os = "dragonfly",
-          target_os = "openbsd",
-          target_os = "netbsd",
-          target_os = "bitrig",
-          target_os = "solaris",
-          target_os = "haiku"))]
-use libc::{c_char, c_int, timeval};
-
-#[cfg(any(target_os = "linux",
-          target_os = "android",
-          target_os = "emscripten",
-          target_os = "fuchsia",
-          target_env = "uclibc"))]
-use libc::{c_char, c_int, timespec};
-
-#[cfg(windows)] use std::os::windows::prelude::*;
-#[cfg(windows)] use std::fs::OpenOptions;
 
 use std::fmt;
 use std::fs;
@@ -242,7 +218,10 @@ pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
     set_symlink_file_times_(p.as_ref(), atime, mtime)
 }
 
-// More generally available, but provides only ms-grain precision.
+use self::imp::{set_file_times_, set_symlink_file_times_};
+
+// utimes based implementation: More generally available, but provides
+// only ms-grain precision.
 #[cfg(any(target_os = "macos",
           target_os = "ios",
           target_os = "freebsd",
@@ -252,222 +231,228 @@ pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
           target_os = "bitrig",
           target_os = "solaris",
           target_os = "haiku"))]
-fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use libc::utimes;
-    fn set_time(filename: *const c_char, times: *const timeval) -> c_int {
-        unsafe {
-            utimes(filename, times)
+mod imp {
+    use std::io;
+    use std::os::unix::prelude::*;
+    use std::path::Path;
+    use libc::{c_char, c_int, timeval};
+
+    use super::FileTime;
+
+    pub(super) fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+        use libc::utimes;
+        fn set_time(filename: *const c_char, times: *const timeval) -> c_int {
+            unsafe {
+                utimes(filename, times)
+            }
         }
+        return set_file_times_u(p, atime, mtime, set_time);
     }
-    return set_file_times_u(p, atime, mtime, set_time);
-}
 
-#[cfg(any(target_os = "macos",
-          target_os = "ios",
-          target_os = "freebsd",
-          target_os = "dragonfly",
-          target_os = "openbsd",
-          target_os = "netbsd",
-          target_os = "bitrig",
-          target_os = "solaris",
-          target_os = "haiku"))]
-fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use libc::lutimes;
-    fn set_time(filename: *const c_char, times: *const timeval) -> c_int {
-        unsafe {
-            lutimes(filename, times)
+    pub(super) fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+        use libc::lutimes;
+        fn set_time(filename: *const c_char, times: *const timeval) -> c_int {
+            unsafe {
+                lutimes(filename, times)
+            }
         }
-    }
-    set_file_times_u(p, atime, mtime, set_time)
-}
-
-#[cfg(any(target_os = "macos",
-          target_os = "ios",
-          target_os = "freebsd",
-          target_os = "dragonfly",
-          target_os = "openbsd",
-          target_os = "netbsd",
-          target_os = "bitrig",
-          target_os = "solaris",
-          target_os = "haiku"))]
-fn set_file_times_u<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes: ST) -> io::Result<()>
-    where ST: Fn(*const c_char, *const timeval) -> c_int
-{
-    use std::ffi::CString;
-    use libc::{timeval, time_t, suseconds_t};
-
-    let times = [to_timeval(&atime), to_timeval(&mtime)];
-    let p = try!(CString::new(p.as_os_str().as_bytes()));
-    return if utimes(p.as_ptr() as *const _, times.as_ptr()) == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    };
-
-    fn to_timeval(ft: &FileTime) -> timeval {
-        timeval {
-            tv_sec: ft.seconds() as time_t,
-            tv_usec: (ft.nanoseconds() / 1000) as suseconds_t,
-        }
-    }
-}
-
-#[cfg(any(target_os = "linux",
-          target_os = "android",
-          target_os = "emscripten",
-          target_os = "fuchsia",
-          target_env = "uclibc"))]
-fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use libc::{utimensat, AT_FDCWD};
-    fn set_time(filename: *const c_char, times: *const timespec) -> c_int {
-        unsafe {
-            // Passing AT_FDCWD interprets a relative filename from
-            // working directory, analogous to behavior of `utimes`.
-            utimensat(AT_FDCWD, filename, times, 0)
-        }
-    }
-    return set_file_times_ns(p, atime, mtime, set_time);
-}
-
-#[cfg(any(target_os = "linux",
-          target_os = "android",
-          target_os = "emscripten",
-          target_os = "fuchsia",
-          target_env = "uclibc"))]
-fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use libc::{utimensat, AT_FDCWD, AT_SYMLINK_NOFOLLOW};
-    fn set_time(filename: *const c_char, times: *const timespec) -> c_int {
-        unsafe {
-            // Passing AT_FDCWD interprets a relative filename from
-            // working directory, analogous to behavior of `utimes`.
-            utimensat(AT_FDCWD, filename, times, AT_SYMLINK_NOFOLLOW)
-        }
-    }
-    set_file_times_ns(p, atime, mtime, set_time)
-}
-
-// Only available on notbsd unix, but provides ns-grain precision.
-#[cfg(any(target_os = "linux",
-          target_os = "android",
-          target_os = "emscripten",
-          target_os = "fuchsia",
-          target_env = "uclibc"))]
-fn set_file_times_ns<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes_ns: ST) -> io::Result<()>
-    where ST: Fn(*const c_char, *const timespec) -> c_int
-{
-    use std::ffi::CString;
-    use libc::{timespec, time_t, c_long};
-
-    let times = [to_timespec(&atime), to_timespec(&mtime)];
-    let p = try!(CString::new(p.as_os_str().as_bytes()));
-    return if utimes_ns(p.as_ptr() as *const _, times.as_ptr()) == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    };
-
-    fn to_timespec(ft: &FileTime) -> timespec {
-        timespec {
-            tv_sec: ft.seconds() as time_t,
-            tv_nsec: ft.nanoseconds() as c_long,
-        }
-    }
-}
-
-#[cfg(target_os = "redox")]
-fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    let fd = syscall::open(p.as_os_str().as_bytes(), 0)
-        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
-    set_file_times_redox(fd, atime, mtime)
-}
-
-#[cfg(target_os = "redox")]
-fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_NOFOLLOW)
-        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
-    set_file_times_redox(fd, atime, mtime)
-}
-
-#[cfg(target_os = "redox")]
-fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use syscall::TimeSpec;
-
-    fn to_timespec(ft: &FileTime) -> TimeSpec {
-        syscall::TimeSpec {
-            tv_sec: ft.seconds() as i64,
-            tv_nsec: ft.nanoseconds() as i32
-        }
+        set_file_times_u(p, atime, mtime, set_time)
     }
 
-    let times = [to_timespec(&atime), to_timespec(&mtime)];
-    let res = syscall::futimens(fd, &times);
-    let _ = syscall::close(fd);
-    match res {
-        Ok(_) => Ok(()),
-        Err(err) => Err(io::Error::from_raw_os_error(err.errno))
-    }
-}
+    fn set_file_times_u<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes: ST) -> io::Result<()>
+        where ST: Fn(*const c_char, *const timeval) -> c_int
+    {
+        use std::ffi::CString;
+        use libc::{timeval, time_t, suseconds_t};
 
-#[cfg(windows)]
-#[allow(bad_style)]
-fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    set_file_times_w(p, atime, mtime, OpenOptions::new())
-}
-
-#[cfg(windows)]
-#[allow(bad_style)]
-fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use std::os::windows::fs::OpenOptionsExt;
-    use winapi::winbase::FILE_FLAG_OPEN_REPARSE_POINT;
-
-    let mut options = OpenOptions::new();
-    options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
-    set_file_times_w(p, atime, mtime, options)
-}
-
-#[cfg(windows)]
-#[allow(bad_style)]
-fn set_file_times_w(p: &Path, atime: FileTime, mtime: FileTime, mut options: OpenOptions) -> io::Result<()> {
-    type BOOL = i32;
-    type HANDLE = *mut u8;
-    type DWORD = u32;
-    #[repr(C)]
-    struct FILETIME {
-        dwLowDateTime: u32,
-        dwHighDateTime: u32,
-    }
-    extern "system" {
-        fn SetFileTime(hFile: HANDLE,
-                       lpCreationTime: *const FILETIME,
-                       lpLastAccessTime: *const FILETIME,
-                       lpLastWriteTime: *const FILETIME) -> BOOL;
-    }
-
-    let f = try!(options.write(true).open(p));
-    let atime = to_filetime(&atime);
-    let mtime = to_filetime(&mtime);
-    return unsafe {
-        let ret = SetFileTime(f.as_raw_handle() as *mut _,
-                              0 as *const _,
-                              &atime, &mtime);
-        if ret != 0 {
+        let times = [to_timeval(&atime), to_timeval(&mtime)];
+        let p = try!(CString::new(p.as_os_str().as_bytes()));
+        return if utimes(p.as_ptr() as *const _, times.as_ptr()) == 0 {
             Ok(())
         } else {
             Err(io::Error::last_os_error())
-        }
-    };
+        };
 
-    fn to_filetime(ft: &FileTime) -> FILETIME {
-        let intervals = ft.seconds() * (1_000_000_000 / 100) +
-                        ((ft.nanoseconds() as u64) / 100);
-        FILETIME {
-            dwLowDateTime: intervals as DWORD,
-            dwHighDateTime: (intervals >> 32) as DWORD,
+        fn to_timeval(ft: &FileTime) -> timeval {
+            timeval {
+                tv_sec: ft.seconds() as time_t,
+                tv_usec: (ft.nanoseconds() / 1000) as suseconds_t,
+            }
         }
     }
 }
 
+// utimensat based implementation: Only available on notbsd unix, but
+// provides ns-grain precision.
+#[cfg(any(target_os = "linux",
+          target_os = "android",
+          target_os = "emscripten",
+          target_os = "fuchsia",
+          target_env = "uclibc"))]
+mod imp {
+    use std::io;
+    use std::os::unix::prelude::*;
+    use std::path::Path;
+    use libc::{c_char, c_int, timespec};
 
+    use super::FileTime;
+
+    pub(super) fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+        use libc::{utimensat, AT_FDCWD};
+        fn set_time(filename: *const c_char, times: *const timespec) -> c_int {
+            unsafe {
+                // Passing AT_FDCWD interprets a relative filename from
+                // working directory, analogous to behavior of `utimes`.
+                utimensat(AT_FDCWD, filename, times, 0)
+            }
+        }
+        return set_file_times_ns(p, atime, mtime, set_time);
+    }
+
+    pub(super) fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+        use libc::{utimensat, AT_FDCWD, AT_SYMLINK_NOFOLLOW};
+        fn set_time(filename: *const c_char, times: *const timespec) -> c_int {
+            unsafe {
+                // Passing AT_FDCWD interprets a relative filename from
+                // working directory, analogous to behavior of `utimes`.
+                utimensat(AT_FDCWD, filename, times, AT_SYMLINK_NOFOLLOW)
+            }
+        }
+        set_file_times_ns(p, atime, mtime, set_time)
+    }
+
+    fn set_file_times_ns<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes_ns: ST) -> io::Result<()>
+        where ST: Fn(*const c_char, *const timespec) -> c_int
+    {
+        use std::ffi::CString;
+        use libc::{timespec, time_t, c_long};
+
+        let times = [to_timespec(&atime), to_timespec(&mtime)];
+        let p = try!(CString::new(p.as_os_str().as_bytes()));
+        return if utimes_ns(p.as_ptr() as *const _, times.as_ptr()) == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        };
+
+        fn to_timespec(ft: &FileTime) -> timespec {
+            timespec {
+                tv_sec: ft.seconds() as time_t,
+                tv_nsec: ft.nanoseconds() as c_long,
+            }
+        }
+    }
+}
+
+// Redox implementation: uses syscalls directly
+#[cfg(target_os = "redox")]
+mod imp {
+    extern crate syscall;
+
+    use std::io;
+    use std::os::unix::prelude::*;
+    use std::path::Path;
+
+    use super::FileTime;
+
+    pub(super) fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+        let fd = syscall::open(p.as_os_str().as_bytes(), 0)
+            .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
+        set_file_times_redox(fd, atime, mtime)
+    }
+
+    pub(super) fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+        let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_NOFOLLOW)
+            .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
+        set_file_times_redox(fd, atime, mtime)
+    }
+
+    fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+        use syscall::TimeSpec;
+
+        fn to_timespec(ft: &FileTime) -> TimeSpec {
+            syscall::TimeSpec {
+                tv_sec: ft.seconds() as i64,
+                tv_nsec: ft.nanoseconds() as i32
+            }
+        }
+
+        let times = [to_timespec(&atime), to_timespec(&mtime)];
+        let res = syscall::futimens(fd, &times);
+        let _ = syscall::close(fd);
+        match res {
+            Ok(_) => Ok(()),
+            Err(err) => Err(io::Error::from_raw_os_error(err.errno))
+        }
+    }
+}
+
+// Windows implementation: has an entirely different API.
+#[cfg(windows)]
+#[allow(bad_style)]
+mod imp {
+    extern crate winapi;
+
+    use std::io;
+    use std::path::Path;
+    use std::os::windows::prelude::*;
+    use std::fs::OpenOptions;
+
+    use super::FileTime;
+
+    pub(super) fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+        set_file_times_w(p, atime, mtime, OpenOptions::new())
+    }
+
+    pub(super) fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+        use std::os::windows::fs::OpenOptionsExt;
+        use winapi::winbase::FILE_FLAG_OPEN_REPARSE_POINT;
+
+        let mut options = OpenOptions::new();
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+        set_file_times_w(p, atime, mtime, options)
+    }
+
+    fn set_file_times_w(p: &Path, atime: FileTime, mtime: FileTime, mut options: OpenOptions) -> io::Result<()> {
+        type BOOL = i32;
+        type HANDLE = *mut u8;
+        type DWORD = u32;
+        #[repr(C)]
+        struct FILETIME {
+            dwLowDateTime: u32,
+            dwHighDateTime: u32,
+        }
+        extern "system" {
+            fn SetFileTime(hFile: HANDLE,
+                           lpCreationTime: *const FILETIME,
+                           lpLastAccessTime: *const FILETIME,
+                           lpLastWriteTime: *const FILETIME) -> BOOL;
+        }
+
+        let f = try!(options.write(true).open(p));
+        let atime = to_filetime(&atime);
+        let mtime = to_filetime(&mtime);
+        return unsafe {
+            let ret = SetFileTime(f.as_raw_handle() as *mut _,
+                                  0 as *const _,
+                                  &atime, &mtime);
+            if ret != 0 {
+                Ok(())
+            } else {
+                Err(io::Error::last_os_error())
+            }
+        };
+
+        fn to_filetime(ft: &FileTime) -> FILETIME {
+            let intervals = ft.seconds() * (1_000_000_000 / 100) +
+                ((ft.nanoseconds() as u64) / 100);
+            FILETIME {
+                dwLowDateTime: intervals as DWORD,
+                dwHighDateTime: (intervals >> 32) as DWORD,
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
