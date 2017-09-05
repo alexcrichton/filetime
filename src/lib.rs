@@ -42,7 +42,9 @@ extern crate syscall;
 #[cfg(windows)]
 extern crate winapi;
 
+
 #[cfg(any(unix, target_os = "redox"))] use std::os::unix::prelude::*;
+#[cfg(windows)] use std::os::windows::prelude::*;
 
 use std::fmt;
 use std::fs;
