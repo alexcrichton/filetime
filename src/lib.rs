@@ -40,7 +40,25 @@ extern crate syscall;
 
 #[cfg(windows)] extern crate winapi;
 #[cfg(any(unix, target_os = "redox"))] use std::os::unix::prelude::*;
-#[cfg(unix)] use libc::{c_char, c_int, timeval};
+
+#[cfg(any(target_os = "macos",
+          target_os = "ios",
+          target_os = "freebsd",
+          target_os = "dragonfly",
+          target_os = "openbsd",
+          target_os = "netbsd",
+          target_os = "bitrig",
+          target_os = "solaris",
+          target_os = "haiku"))]
+use libc::{c_char, c_int, timeval};
+
+#[cfg(any(target_os = "linux",
+          target_os = "android",
+          target_os = "emscripten",
+          target_os = "fuchsia",
+          target_env = "uclibc"))]
+use libc::{c_char, c_int, timespec};
+
 #[cfg(windows)] use std::os::windows::prelude::*;
 #[cfg(windows)] use std::fs::OpenOptions;
 
@@ -224,7 +242,16 @@ pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
     set_symlink_file_times_(p.as_ref(), atime, mtime)
 }
 
-#[cfg(unix)]
+// More generally available, but provides only ms-grain precision.
+#[cfg(any(target_os = "macos",
+          target_os = "ios",
+          target_os = "freebsd",
+          target_os = "dragonfly",
+          target_os = "openbsd",
+          target_os = "netbsd",
+          target_os = "bitrig",
+          target_os = "solaris",
+          target_os = "haiku"))]
 fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     use libc::utimes;
     fn set_time(filename: *const c_char, times: *const timeval) -> c_int {
@@ -232,10 +259,18 @@ fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()>
             utimes(filename, times)
         }
     }
-    set_file_times_u(p, atime, mtime, set_time)
+    return set_file_times_u(p, atime, mtime, set_time);
 }
 
-#[cfg(unix)]
+#[cfg(any(target_os = "macos",
+          target_os = "ios",
+          target_os = "freebsd",
+          target_os = "dragonfly",
+          target_os = "openbsd",
+          target_os = "netbsd",
+          target_os = "bitrig",
+          target_os = "solaris",
+          target_os = "haiku"))]
 fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     use libc::lutimes;
     fn set_time(filename: *const c_char, times: *const timeval) -> c_int {
@@ -246,7 +281,15 @@ fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Re
     set_file_times_u(p, atime, mtime, set_time)
 }
 
-#[cfg(unix)]
+#[cfg(any(target_os = "macos",
+          target_os = "ios",
+          target_os = "freebsd",
+          target_os = "dragonfly",
+          target_os = "openbsd",
+          target_os = "netbsd",
+          target_os = "bitrig",
+          target_os = "solaris",
+          target_os = "haiku"))]
 fn set_file_times_u<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes: ST) -> io::Result<()>
     where ST: Fn(*const c_char, *const timeval) -> c_int
 {
@@ -256,15 +299,77 @@ fn set_file_times_u<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes: ST) 
     let times = [to_timeval(&atime), to_timeval(&mtime)];
     let p = try!(CString::new(p.as_os_str().as_bytes()));
     return if utimes(p.as_ptr() as *const _, times.as_ptr()) == 0 {
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        };
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    };
 
     fn to_timeval(ft: &FileTime) -> timeval {
         timeval {
             tv_sec: ft.seconds() as time_t,
             tv_usec: (ft.nanoseconds() / 1000) as suseconds_t,
+        }
+    }
+}
+
+#[cfg(any(target_os = "linux",
+          target_os = "android",
+          target_os = "emscripten",
+          target_os = "fuchsia",
+          target_env = "uclibc"))]
+fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    use libc::{utimensat, AT_FDCWD};
+    fn set_time(filename: *const c_char, times: *const timespec) -> c_int {
+        unsafe {
+            // Passing AT_FDCWD interprets a relative filename from
+            // working directory, analogous to behavior of `utimes`.
+            utimensat(AT_FDCWD, filename, times, 0)
+        }
+    }
+    return set_file_times_ns(p, atime, mtime, set_time);
+}
+
+#[cfg(any(target_os = "linux",
+          target_os = "android",
+          target_os = "emscripten",
+          target_os = "fuchsia",
+          target_env = "uclibc"))]
+fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    use libc::{utimensat, AT_FDCWD, AT_SYMLINK_NOFOLLOW};
+    fn set_time(filename: *const c_char, times: *const timespec) -> c_int {
+        unsafe {
+            // Passing AT_FDCWD interprets a relative filename from
+            // working directory, analogous to behavior of `utimes`.
+            utimensat(AT_FDCWD, filename, times, AT_SYMLINK_NOFOLLOW)
+        }
+    }
+    set_file_times_ns(p, atime, mtime, set_time)
+}
+
+// Only available on notbsd unix, but provides ns-grain precision.
+#[cfg(any(target_os = "linux",
+          target_os = "android",
+          target_os = "emscripten",
+          target_os = "fuchsia",
+          target_env = "uclibc"))]
+fn set_file_times_ns<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes_ns: ST) -> io::Result<()>
+    where ST: Fn(*const c_char, *const timespec) -> c_int
+{
+    use std::ffi::CString;
+    use libc::{timespec, time_t, c_long};
+
+    let times = [to_timespec(&atime), to_timespec(&mtime)];
+    let p = try!(CString::new(p.as_os_str().as_bytes()));
+    return if utimes_ns(p.as_ptr() as *const _, times.as_ptr()) == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    };
+
+    fn to_timespec(ft: &FileTime) -> timespec {
+        timespec {
+            tv_sec: ft.seconds() as time_t,
+            tv_nsec: ft.nanoseconds() as c_long,
         }
     }
 }
