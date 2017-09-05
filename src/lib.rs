@@ -36,6 +36,12 @@
 
 extern crate libc;
 
+#[cfg(target_os = "redox")]
+extern crate syscall;
+
+#[cfg(windows)]
+extern crate winapi;
+
 #[cfg(any(unix, target_os = "redox"))] use std::os::unix::prelude::*;
 
 use std::fmt;
@@ -347,8 +353,6 @@ mod imp {
 // Redox implementation: uses syscalls directly
 #[cfg(target_os = "redox")]
 mod imp {
-    extern crate syscall;
-
     use std::io;
     use std::os::unix::prelude::*;
     use std::path::Path;
@@ -391,8 +395,6 @@ mod imp {
 #[cfg(windows)]
 #[allow(bad_style)]
 mod imp {
-    extern crate winapi;
-
     use std::io;
     use std::path::Path;
     use std::os::windows::prelude::*;
