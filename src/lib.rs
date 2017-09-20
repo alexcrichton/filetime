@@ -34,20 +34,22 @@
 //! println!("{}", mtime.seconds());
 //! ```
 
-extern crate libc;
-#[cfg(target_os = "redox")]
-extern crate syscall;
-
-#[cfg(windows)] extern crate winapi;
-#[cfg(any(unix, target_os = "redox"))] use std::os::unix::prelude::*;
-#[cfg(unix)] use libc::{c_char, c_int, timeval};
-#[cfg(windows)] use std::os::windows::prelude::*;
-#[cfg(windows)] use std::fs::OpenOptions;
-
 use std::fmt;
 use std::fs;
 use std::io;
 use std::path::Path;
+
+#[cfg(all(unix, not(target_os = "redox")))]
+#[path = "unix.rs"]
+mod imp;
+
+#[cfg(target_os = "redox")]
+#[path = "redox.rs"]
+mod imp;
+
+#[cfg(target_os = "windows")]
+#[path = "windows.rs"]
+mod imp;
 
 /// A helper structure to represent a timestamp for a file.
 ///
@@ -88,15 +90,7 @@ impl FileTime {
     /// The returned value corresponds to the `mtime` field of `stat` on Unix
     /// platforms and the `ftLastWriteTime` field on Windows platforms.
     pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
-        #[cfg(any(unix, target_os = "redox"))]
-        fn imp(meta: &fs::Metadata) -> FileTime {
-            FileTime::from_os_repr(meta.mtime() as u64, meta.mtime_nsec() as u32)
-        }
-        #[cfg(windows)]
-        fn imp(meta: &fs::Metadata) -> FileTime {
-            FileTime::from_os_repr(meta.last_write_time())
-        }
-        imp(meta)
+        imp::from_last_modification_time(meta)
     }
 
     /// Creates a new timestamp from the last access time listed in the
@@ -105,15 +99,7 @@ impl FileTime {
     /// The returned value corresponds to the `atime` field of `stat` on Unix
     /// platforms and the `ftLastAccessTime` field on Windows platforms.
     pub fn from_last_access_time(meta: &fs::Metadata) -> FileTime {
-        #[cfg(any(unix, target_os = "redox"))]
-        fn imp(meta: &fs::Metadata) -> FileTime {
-            FileTime::from_os_repr(meta.atime() as u64, meta.atime_nsec() as u32)
-        }
-        #[cfg(windows)]
-        fn imp(meta: &fs::Metadata) -> FileTime {
-            FileTime::from_os_repr(meta.last_access_time())
-        }
-        imp(meta)
+        imp::from_last_access_time(meta)
     }
 
     /// Creates a new timestamp from the creation time listed in the specified
@@ -124,55 +110,7 @@ impl FileTime {
     /// that not all Unix platforms have this field available and may return
     /// `None` in some circumstances.
     pub fn from_creation_time(meta: &fs::Metadata) -> Option<FileTime> {
-        macro_rules! birthtim {
-            ($(($e:expr, $i:ident)),*) => {
-                #[cfg(any($(target_os = $e),*))]
-                fn imp(meta: &fs::Metadata) -> Option<FileTime> {
-                    $(
-                        #[cfg(target_os = $e)]
-                        use std::os::$i::fs::MetadataExt;
-                    )*
-                    let raw = meta.as_raw_stat();
-                    Some(FileTime::from_os_repr(raw.st_birthtime as u64,
-                                                raw.st_birthtime_nsec as u32))
-                }
-
-                #[cfg(all(not(windows),
-                          $(not(target_os = $e)),*))]
-                fn imp(_meta: &fs::Metadata) -> Option<FileTime> {
-                    None
-                }
-            }
-        }
-
-        birthtim! {
-            ("bitrig", bitrig),
-            ("freebsd", freebsd),
-            ("ios", ios),
-            ("macos", macos),
-            ("openbsd", openbsd)
-        }
-
-        #[cfg(windows)]
-        fn imp(meta: &fs::Metadata) -> Option<FileTime> {
-            Some(FileTime::from_os_repr(meta.last_access_time()))
-        }
-        imp(meta)
-    }
-
-    #[cfg(windows)]
-    fn from_os_repr(time: u64) -> FileTime {
-        // Windows write times are in 100ns intervals, so do a little math to
-        // get it into the right representation.
-        FileTime {
-            seconds: time / (1_000_000_000 / 100),
-            nanos: ((time % (1_000_000_000 / 100)) * 100) as u32,
-        }
-    }
-
-    #[cfg(any(unix, target_os = "redox"))]
-    fn from_os_repr(seconds: u64, nanos: u32) -> FileTime {
-        FileTime { seconds: seconds, nanos: nanos }
+        imp::from_creation_time(meta)
     }
 
     /// Returns the whole number of seconds represented by this timestamp.
@@ -210,8 +148,10 @@ impl fmt::Display for FileTime {
 /// This function will set the `atime` and `mtime` metadata fields for a file
 /// on the local filesystem, returning any error encountered.
 pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
-                         -> io::Result<()> where P: AsRef<Path> {
-    set_file_times_(p.as_ref(), atime, mtime)
+    -> io::Result<()>
+    where P: AsRef<Path>
+{
+    imp::set_file_times(p.as_ref(), atime, mtime)
 }
 
 /// Set the last access and modification times for a file on the filesystem.
@@ -220,149 +160,11 @@ pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
 /// This function will set the `atime` and `mtime` metadata fields for a file
 /// on the local filesystem, returning any error encountered.
 pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
-                                 -> io::Result<()> where P: AsRef<Path> {
-    set_symlink_file_times_(p.as_ref(), atime, mtime)
-}
-
-#[cfg(unix)]
-fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use libc::utimes;
-    fn set_time(filename: *const c_char, times: *const timeval) -> c_int {
-        unsafe {
-            utimes(filename, times)
-        }
-    }
-    set_file_times_u(p, atime, mtime, set_time)
-}
-
-#[cfg(unix)]
-fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use libc::lutimes;
-    fn set_time(filename: *const c_char, times: *const timeval) -> c_int {
-        unsafe {
-            lutimes(filename, times)
-        }
-    }
-    set_file_times_u(p, atime, mtime, set_time)
-}
-
-#[cfg(unix)]
-fn set_file_times_u<ST>(p: &Path, atime: FileTime, mtime: FileTime, utimes: ST) -> io::Result<()>
-    where ST: Fn(*const c_char, *const timeval) -> c_int
+    -> io::Result<()>
+    where P: AsRef<Path>
 {
-    use std::ffi::CString;
-    use libc::{timeval, time_t, suseconds_t};
-
-    let times = [to_timeval(&atime), to_timeval(&mtime)];
-    let p = try!(CString::new(p.as_os_str().as_bytes()));
-    return if utimes(p.as_ptr() as *const _, times.as_ptr()) == 0 {
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        };
-
-    fn to_timeval(ft: &FileTime) -> timeval {
-        timeval {
-            tv_sec: ft.seconds() as time_t,
-            tv_usec: (ft.nanoseconds() / 1000) as suseconds_t,
-        }
-    }
+    imp::set_symlink_file_times(p.as_ref(), atime, mtime)
 }
-
-#[cfg(target_os = "redox")]
-fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    let fd = syscall::open(p.as_os_str().as_bytes(), 0)
-        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
-    set_file_times_redox(fd, atime, mtime)
-}
-
-#[cfg(target_os = "redox")]
-fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_NOFOLLOW)
-        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
-    set_file_times_redox(fd, atime, mtime)
-}
-
-#[cfg(target_os = "redox")]
-fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use syscall::TimeSpec;
-
-    fn to_timespec(ft: &FileTime) -> TimeSpec {
-        syscall::TimeSpec {
-            tv_sec: ft.seconds() as i64,
-            tv_nsec: ft.nanoseconds() as i32
-        }
-    }
-
-    let times = [to_timespec(&atime), to_timespec(&mtime)];
-    let res = syscall::futimens(fd, &times);
-    let _ = syscall::close(fd);
-    match res {
-        Ok(_) => Ok(()),
-        Err(err) => Err(io::Error::from_raw_os_error(err.errno))
-    }
-}
-
-#[cfg(windows)]
-#[allow(bad_style)]
-fn set_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    set_file_times_w(p, atime, mtime, OpenOptions::new())
-}
-
-#[cfg(windows)]
-#[allow(bad_style)]
-fn set_symlink_file_times_(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use std::os::windows::fs::OpenOptionsExt;
-    use winapi::winbase::FILE_FLAG_OPEN_REPARSE_POINT;
-
-    let mut options = OpenOptions::new();
-    options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
-    set_file_times_w(p, atime, mtime, options)
-}
-
-#[cfg(windows)]
-#[allow(bad_style)]
-fn set_file_times_w(p: &Path, atime: FileTime, mtime: FileTime, mut options: OpenOptions) -> io::Result<()> {
-    type BOOL = i32;
-    type HANDLE = *mut u8;
-    type DWORD = u32;
-    #[repr(C)]
-    struct FILETIME {
-        dwLowDateTime: u32,
-        dwHighDateTime: u32,
-    }
-    extern "system" {
-        fn SetFileTime(hFile: HANDLE,
-                       lpCreationTime: *const FILETIME,
-                       lpLastAccessTime: *const FILETIME,
-                       lpLastWriteTime: *const FILETIME) -> BOOL;
-    }
-
-    let f = try!(options.write(true).open(p));
-    let atime = to_filetime(&atime);
-    let mtime = to_filetime(&mtime);
-    return unsafe {
-        let ret = SetFileTime(f.as_raw_handle() as *mut _,
-                              0 as *const _,
-                              &atime, &mtime);
-        if ret != 0 {
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        }
-    };
-
-    fn to_filetime(ft: &FileTime) -> FILETIME {
-        let intervals = ft.seconds() * (1_000_000_000 / 100) +
-                        ((ft.nanoseconds() as u64) / 100);
-        FILETIME {
-            dwLowDateTime: intervals as DWORD,
-            dwHighDateTime: (intervals >> 32) as DWORD,
-        }
-    }
-}
-
-
 
 #[cfg(test)]
 mod tests {

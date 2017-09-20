@@ -12,11 +12,8 @@ description = """
 Platform-agnostic accessors of timestamps in File metadata
 """
 
-[dependencies]
+[target.'cfg(unix)'.dependencies]
 libc = "0.2"
-
-[target.'cfg(windows)'.dependencies]
-winapi = "0.2"
 
 [target.'cfg(target_os = "redox")'.dependencies]
 redox_syscall = "0.1"
