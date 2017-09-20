@@ -69,10 +69,9 @@ pub fn from_creation_time(meta: &fs::Metadata) -> Option<FileTime> {
                     #[cfg(target_os = $e)]
                     use std::os::$i::fs::MetadataExt;
                 )*
-                let raw = meta.as_raw_stat();
                 Some(FileTime {
-                    seconds: raw.st_birthtime as u64,
-                    nanos: raw.st_birthtime_nsec as u32,
+                    seconds: meta.st_birthtime() as u64,
+                    nanos: meta.st_birthtime_nsec() as u32,
                 })
             }
 
