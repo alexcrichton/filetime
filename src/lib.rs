@@ -34,22 +34,29 @@
 //! println!("{}", mtime.seconds());
 //! ```
 
+#[macro_use]
+extern crate cfg_if;
+
 use std::fmt;
 use std::fs;
 use std::io;
 use std::path::Path;
 
-#[cfg(all(unix, not(target_os = "redox")))]
-#[path = "unix.rs"]
-mod imp;
-
-#[cfg(target_os = "redox")]
-#[path = "redox.rs"]
-mod imp;
-
-#[cfg(target_os = "windows")]
-#[path = "windows.rs"]
-mod imp;
+cfg_if! {
+    if #[cfg(target_os = "redox")] {
+        #[path = "redox.rs"]
+        mod imp;
+    } else if #[cfg(windows)] {
+        #[path = "windows.rs"]
+        mod imp;
+    } else if #[cfg(any(target_os = "linux", target_os = "android"))] {
+        #[path = "utimensat.rs"]
+        mod imp;
+    } else {
+        #[path = "utimes.rs"]
+        mod imp;
+    }
+}
 
 /// A helper structure to represent a timestamp for a file.
 ///

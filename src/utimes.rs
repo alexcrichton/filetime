@@ -14,12 +14,6 @@ pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<
     set_file_times_u(p, atime, mtime, libc::utimes)
 }
 
-#[cfg(target_os = "android")]
-pub fn set_symlink_file_times(_p: &Path, _atime: FileTime, _mtime: FileTime) -> io::Result<()> {
-   Err(io::Error::new(io::ErrorKind::Other, "not supported on Android"))
-}
-
-#[cfg(not(target_os = "android"))]
 pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
    set_file_times_u(p, atime, mtime, libc::lutimes)
 }
