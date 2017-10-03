@@ -49,7 +49,9 @@ cfg_if! {
     } else if #[cfg(windows)] {
         #[path = "windows.rs"]
         mod imp;
-    } else if #[cfg(any(target_os = "linux", target_os = "android", target_os = "solaris"))] {
+    } else if #[cfg(any(target_os = "linux", target_os = "android",
+                        target_os = "solaris", target_os = "netbsd",
+                        target_os = "openbsd"))] {
         #[path = "utimensat.rs"]
         mod imp;
     } else {
