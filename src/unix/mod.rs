@@ -6,22 +6,32 @@ use std::io;
 use std::os::unix::prelude::*;
 use std::path::Path;
 
-use self::libc::{c_int, c_char, timeval, time_t, suseconds_t};
+use self::libc::{c_int, c_char, timeval, time_t, suseconds_t, c_long};
+use self::libc::{timespec};
 
 use FileTime;
 
-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    set_file_times_u(p, atime, mtime, libc::utimes)
+cfg_if! {
+    if #[cfg(target_os = "linux")] {
+        mod linux;
+        pub use self::linux::*;
+    } else if #[cfg(any(target_os = "android",
+                        target_os = "solaris",
+                        target_os = "netbsd",
+                        target_os = "openbsd"))] {
+        mod utimensat;
+        pub use self::utimensat::*;
+    } else {
+        mod utimes;
+        pub use self::utimes::*;
+    }
 }
 
-pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-   set_file_times_u(p, atime, mtime, libc::lutimes)
-}
-
-fn set_file_times_u(p: &Path,
-                    atime: FileTime,
-                    mtime: FileTime,
-                    utimes: unsafe extern fn(*const c_char, *const timeval) -> c_int)
+#[allow(dead_code)]
+fn utimes(p: &Path,
+          atime: FileTime,
+          mtime: FileTime,
+          utimes: unsafe extern fn(*const c_char, *const timeval) -> c_int)
     -> io::Result<()>
 {
     let times = [to_timeval(&atime), to_timeval(&mtime)];
@@ -36,6 +46,33 @@ fn set_file_times_u(p: &Path,
         timeval {
             tv_sec: ft.seconds() as time_t,
             tv_usec: (ft.nanoseconds() / 1000) as suseconds_t,
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn utimensat(p: &Path,
+             atime: FileTime,
+             mtime: FileTime,
+             f: unsafe extern fn(c_int, *const c_char, *const timespec, c_int) -> c_int,
+             flags: c_int)
+    -> io::Result<()>
+{
+    let times = [to_timespec(&atime), to_timespec(&mtime)];
+    let p = try!(CString::new(p.as_os_str().as_bytes()));
+    let rc = unsafe {
+        f(libc::AT_FDCWD, p.as_ptr() as *const _, times.as_ptr(), flags)
+    };
+    return if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    };
+
+    fn to_timespec(ft: &FileTime) -> timespec {
+        timespec {
+            tv_sec: ft.seconds() as time_t,
+            tv_nsec: ft.nanoseconds() as c_long,
         }
     }
 }
