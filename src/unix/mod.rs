@@ -6,7 +6,7 @@ use std::io;
 use std::os::unix::prelude::*;
 use std::path::Path;
 
-use self::libc::{c_int, c_char, timeval, time_t, suseconds_t, c_long};
+use self::libc::{c_int, c_char, timeval, time_t, suseconds_t};
 use self::libc::{timespec};
 
 use FileTime;
@@ -72,7 +72,7 @@ fn utimensat(p: &Path,
     fn to_timespec(ft: &FileTime) -> timespec {
         timespec {
             tv_sec: ft.seconds() as time_t,
-            tv_nsec: ft.nanoseconds() as c_long,
+            tv_nsec: ft.nanoseconds() as _,
         }
     }
 }
