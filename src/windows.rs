@@ -81,7 +81,7 @@ fn from_intervals(ticks: u64) -> FileTime {
     // Windows write times are in 100ns intervals, so do a little math to
     // get it into the right representation.
     FileTime {
-        seconds: ticks / (1_000_000_000 / 100),
+        seconds: (ticks / (1_000_000_000 / 100)) as i64,
         nanos: ((ticks % (1_000_000_000 / 100)) * 100) as u32,
     }
 }

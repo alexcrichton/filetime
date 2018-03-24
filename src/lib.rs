@@ -41,6 +41,7 @@ use std::fmt;
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 cfg_if! {
     if #[cfg(target_os = "redox")] {
@@ -62,7 +63,7 @@ cfg_if! {
 /// significant among the same platform.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Copy, Clone, Hash)]
 pub struct FileTime {
-    seconds: u64,
+    seconds: i64,
     nanos: u32,
 }
 
@@ -83,7 +84,7 @@ impl FileTime {
     /// instance may not be the same as that passed in.
     pub fn from_seconds_since_1970(seconds: u64, nanos: u32) -> FileTime {
         FileTime {
-            seconds: seconds + if cfg!(windows) {11644473600} else {0},
+            seconds: seconds as i64 + if cfg!(windows) {11644473600} else {0},
             nanos: nanos,
         }
     }
@@ -117,12 +118,43 @@ impl FileTime {
         imp::from_creation_time(meta)
     }
 
+    /// Creates a new timestamp from the given SystemTime.
+    ///
+    /// Windows counts file times since 1601-01-01T00:00:00Z, and cannot
+    /// represent times before this, but it's possible to create a SystemTime
+    /// that does. This function will error if passed such a SystemTime.
+    pub fn from_system_time(time: SystemTime) -> FileTime {
+        let epoch = if cfg!(windows) {
+            UNIX_EPOCH - Duration::from_secs(11644473600)
+        } else {
+            UNIX_EPOCH
+        };
+
+        time.duration_since(epoch).map(|d| FileTime {
+            seconds: d.as_secs() as i64,
+            nanos: d.subsec_nanos()
+        })
+        .unwrap_or_else(|e| {
+            let until_epoch = e.duration();
+            let (sec_offset, nanos) = if until_epoch.subsec_nanos() == 0 {
+                (0, 0)
+            } else {
+                (-1, 1_000_000_000 - until_epoch.subsec_nanos())
+            };
+
+            FileTime {
+                seconds: -1 * until_epoch.as_secs() as i64 + sec_offset,
+                nanos
+            }
+        })
+    }
+
     /// Returns the whole number of seconds represented by this timestamp.
     ///
     /// Note that this value's meaning is **platform specific**. On Unix
     /// platform time stamps are typically relative to January 1, 1970, but on
     /// Windows platforms time stamps are relative to January 1, 1601.
-    pub fn seconds(&self) -> u64 { self.seconds }
+    pub fn seconds(&self) -> u64 { self.seconds as u64 }
 
     /// Returns the whole number of seconds represented by this timestamp,
     /// relative to the Unix epoch start of January 1, 1970.
@@ -130,7 +162,7 @@ impl FileTime {
     /// Note that this does not return the same value as `seconds` for Windows
     /// platforms as seconds are relative to a different date there.
     pub fn seconds_relative_to_1970(&self) -> u64 {
-        self.seconds - if cfg!(windows) {11644473600} else {0}
+        self.seconds as u64 - if cfg!(windows) {11644473600} else {0}
     }
 
     /// Returns the nanosecond precision of this timestamp.
@@ -179,6 +211,7 @@ mod tests {
     use std::fs::{self, File};
     use self::tempdir::TempDir;
     use super::{FileTime, set_file_times, set_symlink_file_times};
+    use std::time::{Duration, UNIX_EPOCH};
 
     #[cfg(unix)]
     fn make_symlink<P,Q>(src: P, dst: Q) -> io::Result<()>
@@ -196,6 +229,46 @@ mod tests {
     {
         use std::os::windows::fs::symlink_file;
         symlink_file(src, dst)
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn from_system_time_test() {
+        let time = FileTime::from_system_time(UNIX_EPOCH + Duration::from_secs(10));
+        assert_eq!(11644473610, time.seconds);
+        assert_eq!(0, time.nanos);
+
+        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(10));
+        assert_eq!(11644473590, time.seconds);
+        assert_eq!(0, time.nanos);
+
+        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_millis(1100));
+        assert_eq!(11644473598, time.seconds);
+        assert_eq!(900_000_000, time.nanos);
+
+        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(12_000_000_000));
+        assert_eq!(-355526400, time.seconds);
+        assert_eq!(0, time.nanos);
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn from_system_time_test() {
+        let time = FileTime::from_system_time(UNIX_EPOCH + Duration::from_secs(10));
+        assert_eq!(10, time.seconds);
+        assert_eq!(0, time.nanos);
+
+        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(10));
+        assert_eq!(-10, time.seconds);
+        assert_eq!(0, time.nanos);
+
+        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_millis(1100));
+        assert_eq!(-2, time.seconds);
+        assert_eq!(900_000_000, time.nanos);
+
+        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(12_000_000_000));
+        assert_eq!(-12_000_000_000, time.seconds);
+        assert_eq!(0, time.nanos);
     }
 
     #[test]

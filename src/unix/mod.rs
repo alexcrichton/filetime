@@ -79,14 +79,14 @@ fn utimensat(p: &Path,
 
 pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
     FileTime {
-        seconds: meta.mtime() as u64,
+        seconds: meta.mtime(),
         nanos: meta.mtime_nsec() as u32,
     }
 }
 
 pub fn from_last_access_time(meta: &fs::Metadata) -> FileTime {
     FileTime {
-        seconds: meta.atime() as u64,
+        seconds: meta.atime(),
         nanos: meta.atime_nsec() as u32,
     }
 }
@@ -101,7 +101,7 @@ pub fn from_creation_time(meta: &fs::Metadata) -> Option<FileTime> {
                     use std::os::$i::fs::MetadataExt;
                 )*
                 Some(FileTime {
-                    seconds: meta.st_birthtime() as u64,
+                    seconds: meta.st_birthtime(),
                     nanos: meta.st_birthtime_nsec() as u32,
                 })
             }
