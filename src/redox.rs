@@ -24,7 +24,7 @@ fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Resu
 
     fn to_timespec(ft: &FileTime) -> TimeSpec {
         TimeSpec {
-            tv_sec: ft.seconds() as i64,
+            tv_sec: ft.seconds(),
             tv_nsec: ft.nanoseconds() as i32
         }
     }

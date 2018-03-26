@@ -76,16 +76,19 @@ impl FileTime {
     }
 
     /// Creates a new instance of `FileTime` with a number of seconds and
-    /// nanoseconds relative to January 1, 1970.
+    /// nanoseconds relative to the Unix epoch, 1970-01-01T00:00:00Z.
+    ///
+    /// Negative seconds represent times before the Unix epoch, and positive
+    /// values represent times after it. Nanos always count forwards in time.
     ///
     /// Note that this is typically the relative point that Unix time stamps are
     /// from, but on Windows the native time stamp is relative to January 1,
     /// 1601 so the return value of `seconds` from the returned `FileTime`
     /// instance may not be the same as that passed in.
-    pub fn from_seconds_since_1970(seconds: u64, nanos: u32) -> FileTime {
+    pub fn from_seconds_since_1970(seconds: i64, nanos: u32) -> FileTime {
         FileTime {
-            seconds: seconds as i64 + if cfg!(windows) {11644473600} else {0},
-            nanos: nanos,
+            seconds: seconds + if cfg!(windows) {11644473600} else {0},
+            nanos,
         }
     }
 
@@ -154,15 +157,15 @@ impl FileTime {
     /// Note that this value's meaning is **platform specific**. On Unix
     /// platform time stamps are typically relative to January 1, 1970, but on
     /// Windows platforms time stamps are relative to January 1, 1601.
-    pub fn seconds(&self) -> u64 { self.seconds as u64 }
+    pub fn seconds(&self) -> i64 { self.seconds }
 
     /// Returns the whole number of seconds represented by this timestamp,
     /// relative to the Unix epoch start of January 1, 1970.
     ///
     /// Note that this does not return the same value as `seconds` for Windows
     /// platforms as seconds are relative to a different date there.
-    pub fn seconds_relative_to_1970(&self) -> u64 {
-        self.seconds as u64 - if cfg!(windows) {11644473600} else {0}
+    pub fn seconds_relative_to_1970(&self) -> i64 {
+        self.seconds - if cfg!(windows) {11644473600} else {0}
     }
 
     /// Returns the nanosecond precision of this timestamp.
@@ -229,6 +232,38 @@ mod tests {
     {
         use std::os::windows::fs::symlink_file;
         symlink_file(src, dst)
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn from_seconds_since_1970_test() {
+        let time = FileTime::from_seconds_since_1970(10, 100_000_000);
+        assert_eq!(11644473610, time.seconds);
+        assert_eq!(100_000_000, time.nanos);
+
+        let time = FileTime::from_seconds_since_1970(-10, 100_000_000);
+        assert_eq!(11644473590, time.seconds);
+        assert_eq!(100_000_000, time.nanos);
+
+        let time = FileTime::from_seconds_since_1970(-12_000_000_000, 0);
+        assert_eq!(-355526400, time.seconds);
+        assert_eq!(0, time.nanos);
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn from_seconds_since_1970_test() {
+        let time = FileTime::from_seconds_since_1970(10, 100_000_000);
+        assert_eq!(10, time.seconds);
+        assert_eq!(100_000_000, time.nanos);
+
+        let time = FileTime::from_seconds_since_1970(-10, 100_000_000);
+        assert_eq!(-10, time.seconds);
+        assert_eq!(100_000_000, time.nanos);
+
+        let time = FileTime::from_seconds_since_1970(-12_000_000_000, 0);
+        assert_eq!(-12_000_000_000, time.seconds);
+        assert_eq!(0, time.nanos);
     }
 
     #[test]
@@ -313,6 +348,41 @@ mod tests {
         let metadata = fs::symlink_metadata(&spath).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, smtime);
+    }
+
+    #[test]
+    fn set_file_times_pre_unix_epoch_test() {
+        let td = TempDir::new("filetime").unwrap();
+        let path = td.path().join("foo.txt");
+        File::create(&path).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        let atime = FileTime::from_last_access_time(&metadata);
+        set_file_times(&path, atime, mtime).unwrap();
+
+        let new_mtime = FileTime::from_seconds_since_1970(-10_000, 0);
+        set_file_times(&path, atime, new_mtime).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, new_mtime);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn set_file_times_pre_windows_epoch_test() {
+        let td = TempDir::new("filetime").unwrap();
+        let path = td.path().join("foo.txt");
+        File::create(&path).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        let atime = FileTime::from_last_access_time(&metadata);
+        set_file_times(&path, atime, mtime).unwrap();
+
+        let new_mtime = FileTime::from_seconds_since_1970(-12_000_000_000, 0);
+        assert!(set_file_times(&path, atime, new_mtime).is_err());
     }
 
     #[test]
