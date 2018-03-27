@@ -27,7 +27,7 @@
 //! assert!(mtime < atime);
 //!
 //! // Inspect values that can be interpreted across platforms
-//! println!("{}", mtime.seconds_relative_to_1970());
+//! println!("{}", mtime.unix_seconds());
 //! println!("{}", mtime.nanoseconds());
 //!
 //! // Print the platform-specific value of seconds
@@ -85,7 +85,7 @@ impl FileTime {
     /// from, but on Windows the native time stamp is relative to January 1,
     /// 1601 so the return value of `seconds` from the returned `FileTime`
     /// instance may not be the same as that passed in.
-    pub fn from_seconds_since_1970(seconds: i64, nanos: u32) -> FileTime {
+    pub fn from_unix_time(seconds: i64, nanos: u32) -> FileTime {
         FileTime {
             seconds: seconds + if cfg!(windows) {11644473600} else {0},
             nanos,
@@ -164,7 +164,7 @@ impl FileTime {
     ///
     /// Note that this does not return the same value as `seconds` for Windows
     /// platforms as seconds are relative to a different date there.
-    pub fn seconds_relative_to_1970(&self) -> i64 {
+    pub fn unix_seconds(&self) -> i64 {
         self.seconds - if cfg!(windows) {11644473600} else {0}
     }
 
@@ -236,32 +236,32 @@ mod tests {
 
     #[test]
     #[cfg(windows)]
-    fn from_seconds_since_1970_test() {
-        let time = FileTime::from_seconds_since_1970(10, 100_000_000);
+    fn from_unix_time_test() {
+        let time = FileTime::from_unix_time(10, 100_000_000);
         assert_eq!(11644473610, time.seconds);
         assert_eq!(100_000_000, time.nanos);
 
-        let time = FileTime::from_seconds_since_1970(-10, 100_000_000);
+        let time = FileTime::from_unix_time(-10, 100_000_000);
         assert_eq!(11644473590, time.seconds);
         assert_eq!(100_000_000, time.nanos);
 
-        let time = FileTime::from_seconds_since_1970(-12_000_000_000, 0);
+        let time = FileTime::from_unix_time(-12_000_000_000, 0);
         assert_eq!(-355526400, time.seconds);
         assert_eq!(0, time.nanos);
     }
 
     #[test]
     #[cfg(not(windows))]
-    fn from_seconds_since_1970_test() {
-        let time = FileTime::from_seconds_since_1970(10, 100_000_000);
+    fn from_unix_time_test() {
+        let time = FileTime::from_unix_time(10, 100_000_000);
         assert_eq!(10, time.seconds);
         assert_eq!(100_000_000, time.nanos);
 
-        let time = FileTime::from_seconds_since_1970(-10, 100_000_000);
+        let time = FileTime::from_unix_time(-10, 100_000_000);
         assert_eq!(-10, time.seconds);
         assert_eq!(100_000_000, time.nanos);
 
-        let time = FileTime::from_seconds_since_1970(-12_000_000_000, 0);
+        let time = FileTime::from_unix_time(-12_000_000_000, 0);
         assert_eq!(-12_000_000_000, time.seconds);
         assert_eq!(0, time.nanos);
     }
@@ -317,7 +317,7 @@ mod tests {
         let atime = FileTime::from_last_access_time(&metadata);
         set_file_times(&path, atime, mtime).unwrap();
 
-        let new_mtime = FileTime::from_seconds_since_1970(10_000, 0);
+        let new_mtime = FileTime::from_unix_time(10_000, 0);
         set_file_times(&path, atime, new_mtime).unwrap();
 
         let metadata = fs::metadata(&path).unwrap();
@@ -361,7 +361,7 @@ mod tests {
         let atime = FileTime::from_last_access_time(&metadata);
         set_file_times(&path, atime, mtime).unwrap();
 
-        let new_mtime = FileTime::from_seconds_since_1970(-10_000, 0);
+        let new_mtime = FileTime::from_unix_time(-10_000, 0);
         set_file_times(&path, atime, new_mtime).unwrap();
 
         let metadata = fs::metadata(&path).unwrap();
@@ -381,7 +381,7 @@ mod tests {
         let atime = FileTime::from_last_access_time(&metadata);
         set_file_times(&path, atime, mtime).unwrap();
 
-        let new_mtime = FileTime::from_seconds_since_1970(-12_000_000_000, 0);
+        let new_mtime = FileTime::from_unix_time(-12_000_000_000, 0);
         assert!(set_file_times(&path, atime, new_mtime).is_err());
     }
 
@@ -396,7 +396,7 @@ mod tests {
         let atime = FileTime::from_last_access_time(&metadata);
         set_symlink_file_times(&path, atime, mtime).unwrap();
 
-        let new_mtime = FileTime::from_seconds_since_1970(10_000, 0);
+        let new_mtime = FileTime::from_unix_time(10_000, 0);
         set_symlink_file_times(&path, atime, new_mtime).unwrap();
 
         let metadata = fs::metadata(&path).unwrap();
@@ -415,7 +415,7 @@ mod tests {
         let mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, new_mtime);
 
-        let new_smtime = FileTime::from_seconds_since_1970(20_000, 0);
+        let new_smtime = FileTime::from_unix_time(20_000, 0);
         set_symlink_file_times(&spath, atime, new_smtime).unwrap();
 
         let metadata = fs::metadata(&spath).unwrap();
