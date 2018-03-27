@@ -24,7 +24,7 @@ fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Resu
 
     fn to_timespec(ft: &FileTime) -> TimeSpec {
         TimeSpec {
-            tv_sec: ft.seconds() as i64,
+            tv_sec: ft.seconds(),
             tv_nsec: ft.nanoseconds() as i32
         }
     }
@@ -40,14 +40,14 @@ fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Resu
 
 pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
     FileTime {
-        seconds: meta.mtime() as u64,
+        seconds: meta.mtime(),
         nanos: meta.mtime_nsec() as u32,
     }
 }
 
 pub fn from_last_access_time(meta: &fs::Metadata) -> FileTime {
     FileTime {
-        seconds: meta.atime() as u64,
+        seconds: meta.atime(),
         nanos: meta.atime_nsec() as u32,
     }
 }

@@ -57,7 +57,7 @@ pub fn set_file_times_w(p: &Path,
 
     fn to_filetime(ft: &FileTime) -> FILETIME {
         let intervals = ft.seconds() * (1_000_000_000 / 100) +
-                        ((ft.nanoseconds() as u64) / 100);
+                        ((ft.nanoseconds() as i64) / 100);
         FILETIME {
             dwLowDateTime: intervals as DWORD,
             dwHighDateTime: (intervals >> 32) as DWORD,
@@ -81,7 +81,7 @@ fn from_intervals(ticks: u64) -> FileTime {
     // Windows write times are in 100ns intervals, so do a little math to
     // get it into the right representation.
     FileTime {
-        seconds: ticks / (1_000_000_000 / 100),
+        seconds: (ticks / (1_000_000_000 / 100)) as i64,
         nanos: ((ticks % (1_000_000_000 / 100)) * 100) as u32,
     }
 }
