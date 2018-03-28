@@ -13,7 +13,7 @@ platform-independent representation.
 ```toml
 # Cargo.toml
 [dependencies]
-filetime = "0.1"
+filetime = "0.2"
 ```
 
 # License
