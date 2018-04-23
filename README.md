@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/alexcrichton/filetime.svg?branch=master)](https://travis-ci.org/alexcrichton/filetime)
 [![Build status](https://ci.appveyor.com/api/projects/status/9tatexq47i3ee13k?svg=true)](https://ci.appveyor.com/project/alexcrichton/filetime)
 
-[Documentation](http://alexcrichton.com/filetime/filetime/index.html)
+[Documentation](https://docs.rs/filetime)
 
 A helper library for inspecting the various timestamps of files in Rust. This
 library takes into account cross-platform differences in terms of where the
