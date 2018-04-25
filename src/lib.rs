@@ -301,8 +301,8 @@ mod tests {
         assert_eq!(-2, time.seconds);
         assert_eq!(900_000_000, time.nanos);
 
-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(12_000_000_000));
-        assert_eq!(-12_000_000_000, time.seconds);
+        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(12_000_000));
+        assert_eq!(-12_000_000, time.seconds);
         assert_eq!(0, time.nanos);
     }
 
