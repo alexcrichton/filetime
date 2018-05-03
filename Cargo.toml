@@ -7,7 +7,7 @@ readme = "README.md"
 keywords = ["timestamp", "mtime"]
 repository = "https://github.com/alexcrichton/filetime"
 homepage = "https://github.com/alexcrichton/filetime"
-documentation = "http://alexcrichton.com/filetime"
+documentation = "https://docs.rs/filetime"
 description = """
 Platform-agnostic accessors of timestamps in File metadata
 """
