@@ -182,6 +182,12 @@ impl fmt::Display for FileTime {
     }
 }
 
+impl From<SystemTime> for FileTime {
+    fn from(time: SystemTime) -> FileTime {
+        FileTime::from_system_time(time)
+    }
+}
+
 /// Set the last access and modification times for a file on the filesystem.
 ///
 /// This function will set the `atime` and `mtime` metadata fields for a file
