@@ -18,7 +18,9 @@ cfg_if! {
     } else if #[cfg(any(target_os = "android",
                         target_os = "solaris",
                         target_os = "netbsd",
-                        target_os = "openbsd"))] {
+                        target_os = "openbsd",
+                        target_os = "freebsd",
+                        target_os = "emscripten"))] {
         mod utimensat;
         pub use self::utimensat::*;
     } else {
