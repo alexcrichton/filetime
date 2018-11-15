@@ -20,7 +20,8 @@ cfg_if! {
     // these target_os'es should be added back in.
     } else if #[cfg(any(target_os = "android",
                         target_os = "solaris",
-                        target_os = "emscripten"))] {
+                        target_os = "emscripten",
+                        target_os = "openbsd"))] {
         mod utimensat;
         pub use self::utimensat::*;
     } else {
