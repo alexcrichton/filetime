@@ -15,12 +15,11 @@ cfg_if! {
     if #[cfg(target_os = "linux")] {
         mod linux;
         pub use self::linux::*;
-    // netbsd, openbsd and freebsd should use utimensat, but the call is not
-    // in the latest rust libc (0.2.43). as soon as a new version is available
-    // these target_os'es should be added back in.
     } else if #[cfg(any(target_os = "android",
                         target_os = "solaris",
                         target_os = "emscripten",
+                        target_os = "freebsd",
+                        target_os = "netbsd",
                         target_os = "openbsd"))] {
         mod utimensat;
         pub use self::utimensat::*;
