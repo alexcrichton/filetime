@@ -7,13 +7,25 @@ use std::path::Path;
 
 use FileTime;
 
-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+pub fn set_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
+    let (atime, mtime) = match (atime, mtime) {
+        (Some(atime), Some(mtime)) => (atime, mtime),
+        (None, None) => return Ok(()),
+        _ => unimplemented!("Must set both atime and mtime on Redox"),
+    };
+
     let fd = syscall::open(p.as_os_str().as_bytes(), 0)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     set_file_times_redox(fd, atime, mtime)
 }
 
-pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+pub fn set_symlink_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
+    let (atime, mtime) = match (atime, mtime) {
+        (Some(atime), Some(mtime)) => (atime, mtime),
+        (None, None) => return Ok(()),
+        _ => unimplemented!("Must set both atime and mtime on Redox"),
+    };
+
     let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_NOFOLLOW)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     set_file_times_redox(fd, atime, mtime)

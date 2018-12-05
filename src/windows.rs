@@ -7,11 +7,23 @@ use std::path::Path;
 
 use FileTime;
 
-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+pub fn set_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
+    let (atime, mtime) = match (atime, mtime) {
+        (Some(atime), Some(mtime)) => (atime, mtime),
+        (None, None) => return Ok(()),
+        _ => unimplemented!("Must set both atime and mtime on Windows"),
+    };
+
     set_file_times_w(p, atime, mtime, OpenOptions::new())
 }
 
-pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+pub fn set_symlink_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
+    let (atime, mtime) = match (atime, mtime) {
+        (Some(atime), Some(mtime)) => (atime, mtime),
+        (None, None) => return Ok(()),
+        _ => unimplemented!("Must set both atime and mtime on Windows"),
+    };
+
     use std::os::windows::fs::OpenOptionsExt;
     const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x00200000;
 
