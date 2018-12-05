@@ -196,7 +196,7 @@ pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
     -> io::Result<()>
     where P: AsRef<Path>
 {
-    imp::set_file_times(p.as_ref(), atime, mtime)
+    imp::set_file_times(p.as_ref(), Some(atime), Some(mtime))
 }
 
 /// Set the last access and modification times for a file on the filesystem.
@@ -208,7 +208,33 @@ pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
     -> io::Result<()>
     where P: AsRef<Path>
 {
-    imp::set_symlink_file_times(p.as_ref(), atime, mtime)
+    imp::set_symlink_file_times(p.as_ref(), Some(atime), Some(mtime))
+}
+
+/// Set the last modification time for a file on the filesystem.
+///
+/// This function will set the `mtime` metadata field for a file on the local
+/// filesystem, returning any error encountered.
+#[cfg(not(any(target_os = "redox", windows)))]
+pub fn set_file_mtime<P>(p: P, mtime: FileTime)
+    -> io::Result<()>
+    where P: AsRef<Path>
+{
+    imp::set_file_times(p.as_ref(), None, Some(mtime))
+}
+
+/// Set the last access time for a file on the filesystem.
+///
+/// This function will set the `atime` metadata field for a file on the local
+/// filesystem, returning any error encountered.
+///
+/// Currently only supported for Unix systems.
+#[cfg(not(any(target_os = "redox", windows)))]
+pub fn set_file_atime<P>(p: P, atime: FileTime)
+    -> io::Result<()>
+    where P: AsRef<Path>
+{
+    imp::set_file_times(p.as_ref(), Some(atime), None)
 }
 
 #[cfg(test)]
@@ -431,5 +457,36 @@ mod tests {
         let metadata = fs::symlink_metadata(&spath).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, new_smtime);
+    }
+
+    #[test]
+    #[cfg(not(any(target_os = "redox", windows)))]
+    fn set_single_time_test() {
+        use super::{set_file_mtime, set_file_atime};
+
+        let td = TempDir::new("filetime").unwrap();
+        let path = td.path().join("foo.txt");
+        File::create(&path).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        let atime = FileTime::from_last_access_time(&metadata);
+        set_file_times(&path, atime, mtime).unwrap();
+
+        let new_mtime = FileTime::from_unix_time(10_000, 0);
+        set_file_mtime(&path, new_mtime).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, new_mtime);
+        assert_eq!(atime, FileTime::from_last_access_time(&metadata));
+
+        let new_atime = FileTime::from_unix_time(20_000, 0);
+        set_file_atime(&path, new_atime).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let atime = FileTime::from_last_access_time(&metadata);
+        assert_eq!(atime, new_atime);
+        assert_eq!(mtime, FileTime::from_last_modification_time(&metadata));
     }
 }

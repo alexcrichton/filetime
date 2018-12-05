@@ -11,15 +11,15 @@ use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT};
 use FileTime;
 use super::libc::{self, c_int, c_char, timespec};
 
-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+pub fn set_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
     set_times(p, atime, mtime, false)
 }
 
-pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+pub fn set_symlink_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
     set_times(p, atime, mtime, true)
 }
 
-fn set_times(p: &Path, atime: FileTime, mtime: FileTime, symlink: bool) -> io::Result<()> {
+fn set_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>, symlink: bool) -> io::Result<()> {
     let flags = if symlink { libc::AT_SYMLINK_NOFOLLOW } else { 0 };
     let utimes = if symlink { libc::lutimes } else { libc::utimes };
 
