@@ -14,13 +14,13 @@ matrix:
       script:
         - cargo doc --no-deps --all-features
       deploy:
-	provider: script
-	script:
+        provider: script
+        script:
           - curl -O https://raw.githubusercontent.com/alexcrichton/rust-travis-deploy/master/travis-deploy.rs
           - rustc travis-deploy.rs
           - (cd target/doc && ../../travis-deploy)
-	on:
-	  branch: master
+        on:
+          branch: master
 
 script:
   - cargo test
