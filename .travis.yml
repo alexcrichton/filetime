@@ -16,6 +16,7 @@ matrix:
       deploy:
         provider: script
         script: curl -LsSf https://git.io/fhJ8n | rustc - && (cd target/doc && ../../rust_out)
+        skip_cleanup: true
         on:
           branch: master
 
