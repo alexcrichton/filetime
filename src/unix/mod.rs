@@ -31,25 +31,11 @@ cfg_if! {
 
 #[allow(dead_code)]
 fn utimes(p: &Path,
-          atime: Option<FileTime>,
-          mtime: Option<FileTime>,
+          atime: FileTime,
+          mtime: FileTime,
           utimes: unsafe extern fn(*const c_char, *const timeval) -> c_int)
     -> io::Result<()>
 {
-    let atime = if let Some(atime) = atime {
-        atime
-    } else {
-        let meta = p.metadata().expect("file should have metadata");
-        from_last_access_time(&meta)
-    };
-
-    let mtime = if let Some(mtime) = mtime {
-        mtime
-    } else {
-        let meta = p.metadata().expect("file should have metadata");
-        from_last_modification_time(&meta)
-    };
-
     let times = [to_timeval(&atime), to_timeval(&mtime)];
     let p = try!(CString::new(p.as_os_str().as_bytes()));
     return if unsafe { utimes(p.as_ptr() as *const _, times.as_ptr()) == 0 } {

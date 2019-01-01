@@ -215,7 +215,10 @@ pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
 ///
 /// This function will set the `mtime` metadata field for a file on the local
 /// filesystem, returning any error encountered.
-#[cfg(not(any(target_os = "redox", windows)))]
+///
+/// Currently only supported on Unix platforms with the `utimensat` feature
+/// enabled.
+#[cfg(all(feature = "utimensat", not(any(target_os = "redox", windows))))]
 pub fn set_file_mtime<P>(p: P, mtime: FileTime)
     -> io::Result<()>
     where P: AsRef<Path>
@@ -228,8 +231,9 @@ pub fn set_file_mtime<P>(p: P, mtime: FileTime)
 /// This function will set the `atime` metadata field for a file on the local
 /// filesystem, returning any error encountered.
 ///
-/// Currently only supported for Unix systems.
-#[cfg(not(any(target_os = "redox", windows)))]
+/// Currently only supported on Unix platforms with the `utimensat` feature
+/// enabled.
+#[cfg(all(feature = "utimensat", not(any(target_os = "redox", windows))))]
 pub fn set_file_atime<P>(p: P, atime: FileTime)
     -> io::Result<()>
     where P: AsRef<Path>
@@ -460,7 +464,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(any(target_os = "redox", windows)))]
+    #[cfg(all(feature = "utimensat", not(any(target_os = "redox", windows))))]
     fn set_single_time_test() {
         use super::{set_file_mtime, set_file_atime};
 
