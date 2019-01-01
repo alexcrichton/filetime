@@ -23,3 +23,9 @@ redox_syscall = "0.1"
 
 [dev-dependencies]
 tempdir = "0.3"
+
+[features]
+# On Unix platforms, forces the use of the `utimensat` syscall rather than the
+# older `utimes`. This will expose functions for setting only the mtime or only
+# the atime for a file, but will cause panics if `utimensat` cannot be called.
+utimensat = []

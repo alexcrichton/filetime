@@ -21,24 +21,41 @@ pub fn set_symlink_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<F
 
 fn set_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>, symlink: bool) -> io::Result<()> {
     let flags = if symlink { libc::AT_SYMLINK_NOFOLLOW } else { 0 };
-    let utimes = if symlink { libc::lutimes } else { libc::utimes };
 
-    // Try to use the more-accurate `utimensat` when possible.
-    static INVALID: AtomicBool = ATOMIC_BOOL_INIT;
-    if !INVALID.load(Ordering::SeqCst) {
-        if let Some(f) = utimensat() {
-            // Even when libc has `utimensat`, the kernel may return `ENOSYS`,
-            // and then we'll need to use the `utimes` fallback instead.
-            match super::utimensat(p, atime, mtime, f, flags) {
-                Err(ref e) if e.raw_os_error() == Some(libc::ENOSYS) => {
-                    INVALID.store(true, Ordering::SeqCst);
-                }
-                valid => return valid,
+    if cfg!(feature = "utimensat") {
+         match utimensat() {
+            Some(f) => {
+                super::utimensat(p, atime, mtime, f, flags)
+            },
+            None => {
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Version of libc does not support the utimensat syscall"
+                ))
             }
         }
-    }
+    } else {
+        // Try to use the more-accurate `utimensat` when possible.
+        static INVALID: AtomicBool = ATOMIC_BOOL_INIT;
+        if !INVALID.load(Ordering::SeqCst) {
+            if let Some(f) = utimensat() {
+                // Even when libc has `utimensat`, the kernel may return `ENOSYS`,
+                // and then we'll need to use the `utimes` fallback instead.
+                match super::utimensat(p, atime, mtime, f, flags) {
+                    Err(ref e) if e.raw_os_error() == Some(libc::ENOSYS) => {
+                        INVALID.store(true, Ordering::SeqCst);
+                    }
+                    valid => return valid,
+                }
+            }
+        }
 
-    super::utimes(p, atime, mtime, utimes)
+        let utimes = if symlink { libc::lutimes } else { libc::utimes };
+
+        // Safe to unwrap atime and mtime -- without the utimensat feature enabled, the public API
+        // only exposes methods that intialize atime and mtime as Some.
+        super::utimes(p, atime.unwrap(), mtime.unwrap(), utimes)
+    }
 }
 
 fn utimensat() -> Option<unsafe extern fn(c_int, *const c_char, *const timespec, c_int) -> c_int> {
