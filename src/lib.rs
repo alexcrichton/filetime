@@ -218,7 +218,14 @@ pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
 ///
 /// Currently only supported on Unix platforms with the `utimensat` feature
 /// enabled.
-#[cfg(all(feature = "utimensat", not(any(target_os = "redox", windows))))]
+#[cfg(all(feature = "utimensat",
+          any(target_os = "linux",
+              target_os = "android",
+              target_os = "solaris",
+              target_os = "emscripten",
+              target_os = "freebsd",
+              target_os = "netbsd",
+              target_os = "openbsd")))]
 pub fn set_file_mtime<P>(p: P, mtime: FileTime)
     -> io::Result<()>
     where P: AsRef<Path>
@@ -233,7 +240,14 @@ pub fn set_file_mtime<P>(p: P, mtime: FileTime)
 ///
 /// Currently only supported on Unix platforms with the `utimensat` feature
 /// enabled.
-#[cfg(all(feature = "utimensat", not(any(target_os = "redox", windows))))]
+#[cfg(all(feature = "utimensat",
+          any(target_os = "linux",
+              target_os = "android",
+              target_os = "solaris",
+              target_os = "emscripten",
+              target_os = "freebsd",
+              target_os = "netbsd",
+              target_os = "openbsd")))]
 pub fn set_file_atime<P>(p: P, atime: FileTime)
     -> io::Result<()>
     where P: AsRef<Path>
@@ -464,7 +478,14 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(feature = "utimensat", not(any(target_os = "redox", windows))))]
+    #[cfg(all(feature = "utimensat",
+              any(target_os = "linux",
+                  target_os = "android",
+                  target_os = "solaris",
+                  target_os = "emscripten",
+                  target_os = "freebsd",
+                  target_os = "netbsd",
+                  target_os = "openbsd")))]
     fn set_single_time_test() {
         use super::{set_file_mtime, set_file_atime};
 
