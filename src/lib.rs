@@ -37,6 +37,7 @@
 #[macro_use]
 extern crate cfg_if;
 
+use std::env;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -75,6 +76,14 @@ impl FileTime {
         FileTime { seconds: 0, nanos: 0 }
     }
 
+    fn emulate_second_only_systom(self) -> FileTime {
+        if cfg!(debug_assertions) && env::var_os("FILETIME_EMULATE_SECOND_ONLY_SYSTOM").is_some() {
+            FileTime {seconds: self.seconds, nanos: 0}
+        } else {
+            self
+        }
+    }
+
     /// Creates a new instance of `FileTime` with a number of seconds and
     /// nanoseconds relative to the Unix epoch, 1970-01-01T00:00:00Z.
     ///
@@ -89,7 +98,7 @@ impl FileTime {
         FileTime {
             seconds: seconds + if cfg!(windows) {11644473600} else {0},
             nanos,
-        }
+        }.emulate_second_only_systom()
     }
 
     /// Creates a new timestamp from the last modification time listed in the
@@ -98,7 +107,7 @@ impl FileTime {
     /// The returned value corresponds to the `mtime` field of `stat` on Unix
     /// platforms and the `ftLastWriteTime` field on Windows platforms.
     pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
-        imp::from_last_modification_time(meta)
+        imp::from_last_modification_time(meta).emulate_second_only_systom()
     }
 
     /// Creates a new timestamp from the last access time listed in the
@@ -107,7 +116,7 @@ impl FileTime {
     /// The returned value corresponds to the `atime` field of `stat` on Unix
     /// platforms and the `ftLastAccessTime` field on Windows platforms.
     pub fn from_last_access_time(meta: &fs::Metadata) -> FileTime {
-        imp::from_last_access_time(meta)
+        imp::from_last_access_time(meta).emulate_second_only_systom()
     }
 
     /// Creates a new timestamp from the creation time listed in the specified
@@ -118,7 +127,7 @@ impl FileTime {
     /// that not all Unix platforms have this field available and may return
     /// `None` in some circumstances.
     pub fn from_creation_time(meta: &fs::Metadata) -> Option<FileTime> {
-        imp::from_creation_time(meta)
+        imp::from_creation_time(meta).map(|x| x.emulate_second_only_systom())
     }
 
     /// Creates a new timestamp from the given SystemTime.
@@ -149,7 +158,7 @@ impl FileTime {
                 seconds: -1 * until_epoch.as_secs() as i64 + sec_offset,
                 nanos
             }
-        })
+        }).emulate_second_only_systom()
     }
 
     /// Returns the whole number of seconds represented by this timestamp.
