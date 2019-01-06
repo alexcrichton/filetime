@@ -5,7 +5,7 @@
 
 [Documentation](https://docs.rs/filetime)
 
-A helper library for inspecting and seting the various timestamps of files in Rust. This
+A helper library for inspecting and setting the various timestamps of files in Rust. This
 library takes into account cross-platform differences in terms of where the
 timestamps are located, what they are called, and how to convert them into a
 platform-independent representation.
@@ -18,9 +18,9 @@ filetime = "0.2"
 
 # Advantages over using `std::fs::Metadata`
 
-This library includes the ability to set this data, which std dose not.
+This library includes the ability to set this data, which std does not.
 
-This library, when built with debug_assertions and with the variable `FILETIME_EMULATE_SECOND_ONLY_SYSTOM` set, will return all times rounded down to the second. This emulates the behavior of some file systems, mostly [HFS](https://en.wikipedia.org/wiki/HFS_Plus), allowing debugging on other hardware.
+This library, when built with debug_assertions and with the variable `FILETIME_EMULATE_SECOND_ONLY_SYSTEM` set, will return all times rounded down to the second. This emulates the behavior of some file systems, mostly [HFS](https://en.wikipedia.org/wiki/HFS_Plus), allowing debugging on other hardware.
 
 # License
 
