@@ -77,7 +77,7 @@ impl FileTime {
     }
 
     fn emulate_second_only_system(self) -> FileTime {
-        if cfg!(debug_assertions) && env::var_os("FILETIME_EMULATE_SECOND_ONLY_SYSTEM").is_some() {
+        if cfg!(emulate_second_only_systom) {
             FileTime {seconds: self.seconds, nanos: 0}
         } else {
             self

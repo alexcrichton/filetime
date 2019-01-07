@@ -20,7 +20,7 @@ filetime = "0.2"
 
 This library includes the ability to set this data, which std does not.
 
-This library, when built with debug_assertions and with the variable `FILETIME_EMULATE_SECOND_ONLY_SYSTEM` set, will return all times rounded down to the second. This emulates the behavior of some file systems, mostly [HFS](https://en.wikipedia.org/wiki/HFS_Plus), allowing debugging on other hardware.
+This library, when built with `RUSTFLAGS=--cfg emulate_second_only_systom` set, will return all times rounded down to the second. This emulates the behavior of some file systems, mostly [HFS](https://en.wikipedia.org/wiki/HFS_Plus), allowing debugging on other hardware.
 
 # License
 
