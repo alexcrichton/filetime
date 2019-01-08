@@ -37,7 +37,6 @@
 #[macro_use]
 extern crate cfg_if;
 
-use std::env;
 use std::fmt;
 use std::fs;
 use std::io;
