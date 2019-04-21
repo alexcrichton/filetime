@@ -50,6 +50,9 @@ cfg_if! {
     } else if #[cfg(windows)] {
         #[path = "windows.rs"]
         mod imp;
+    } else if #[cfg(target_arch = "wasm32")] {
+        #[path = "wasm.rs"]
+        mod imp;
     } else {
         #[path = "unix/mod.rs"]
         mod imp;
