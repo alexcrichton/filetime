@@ -6,11 +6,11 @@ use std::{fs, io};
 use FileTime;
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    unimplemented!()
+    Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
 }
 
 pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    unimplemented!()
+    Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
 }
 
 pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
