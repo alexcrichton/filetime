@@ -6,8 +6,7 @@ use std::fs;
 use std::io;
 use std::mem;
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
-use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT};
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst, AtomicBool};
 
 use FileTime;
 use super::libc::{self, c_int, c_char, timespec};
@@ -35,14 +34,14 @@ pub fn set_file_handle_times(
         }
     } else {
         // Try to use the more-accurate `utimensat` when possible.
-        static INVALID: AtomicBool = ATOMIC_BOOL_INIT;
-        if !INVALID.load(Ordering::SeqCst) {
+        static INVALID: AtomicBool = AtomicBool::new(false);
+        if !INVALID.load(SeqCst) {
             if let Some(func) = futimens() {
                 // Even when libc has `futimens`, the kernel may return `ENOSYS`,
                 // and then we'll need to use the `utimes` fallback instead.
                 match super::futimens(f, atime, mtime, func) {
                     Err(ref e) if e.raw_os_error() == Some(libc::ENOSYS) => {
-                        INVALID.store(true, Ordering::SeqCst);
+                        INVALID.store(true, SeqCst);
                     }
                     valid => return valid,
                 }
@@ -77,14 +76,14 @@ fn set_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>, symlink
         }
     } else {
         // Try to use the more-accurate `utimensat` when possible.
-        static INVALID: AtomicBool = ATOMIC_BOOL_INIT;
-        if !INVALID.load(Ordering::SeqCst) {
+        static INVALID: AtomicBool = AtomicBool::new(false);
+        if !INVALID.load(SeqCst) {
             if let Some(f) = utimensat() {
                 // Even when libc has `utimensat`, the kernel may return `ENOSYS`,
                 // and then we'll need to use the `utimes` fallback instead.
                 match super::utimensat(p, atime, mtime, f, flags) {
                     Err(ref e) if e.raw_os_error() == Some(libc::ENOSYS) => {
-                        INVALID.store(true, Ordering::SeqCst);
+                        INVALID.store(true, SeqCst);
                     }
                     valid => return valid,
                 }
@@ -100,9 +99,9 @@ fn set_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>, symlink
 }
 
 fn utimensat() -> Option<unsafe extern fn(c_int, *const c_char, *const timespec, c_int) -> c_int> {
-    static ADDR: AtomicUsize = ATOMIC_USIZE_INIT;
+    static ADDR: AtomicUsize = AtomicUsize::new(0);
     unsafe {
-        match ADDR.load(Ordering::SeqCst) {
+        match ADDR.load(SeqCst) {
             0 => {}
             1 => return None,
             n => return Some(mem::transmute(n)),
@@ -114,15 +113,15 @@ fn utimensat() -> Option<unsafe extern fn(c_int, *const c_char, *const timespec,
         } else {
             (sym as usize, Some(mem::transmute(sym)))
         };
-        ADDR.store(val, Ordering::SeqCst);
+        ADDR.store(val, SeqCst);
         return ret
     }
 }
 
 fn futimens() -> Option<unsafe extern fn(c_int, *const timespec) -> c_int> {
-    static ADDR: AtomicUsize = ATOMIC_USIZE_INIT;
+    static ADDR: AtomicUsize = AtomicUsize::new(0);
     unsafe {
-        match ADDR.load(Ordering::SeqCst) {
+        match ADDR.load(SeqCst) {
             0 => {}
             1 => return None,
             n => return Some(mem::transmute(n)),
@@ -134,7 +133,7 @@ fn futimens() -> Option<unsafe extern fn(c_int, *const timespec) -> c_int> {
         } else {
             (sym as usize, Some(mem::transmute(sym)))
         };
-        ADDR.store(val, Ordering::SeqCst);
+        ADDR.store(val, SeqCst);
         return ret
     }
 }
