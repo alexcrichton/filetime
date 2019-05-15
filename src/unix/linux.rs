@@ -2,15 +2,15 @@
 //! always available so we also fall back to `utimes` if we couldn't find
 //! `utimensat` at runtime.
 
+use crate::FileTime;
 use std::ffi::CString;
-use std::ptr;
 use std::fs;
 use std::io;
-use std::path::Path;
-use std::sync::atomic::{Ordering::SeqCst, AtomicBool};
 use std::os::unix::prelude::*;
-
-use FileTime;
+use std::path::Path;
+use std::ptr;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::SeqCst;
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     set_times(p, Some(atime), Some(mtime), false)
@@ -44,13 +44,13 @@ pub fn set_file_handle_times(
             )
         };
         if rc == 0 {
-            return Ok(())
+            return Ok(());
         }
         let err = io::Error::last_os_error();
         if err.raw_os_error() == Some(libc::ENOSYS) {
             INVALID.store(true, SeqCst);
-        } else  {
-            return Err(err)
+        } else {
+            return Err(err);
         }
     }
 
@@ -61,8 +61,17 @@ pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io:
     set_times(p, Some(atime), Some(mtime), true)
 }
 
-fn set_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>, symlink: bool) -> io::Result<()> {
-    let flags = if symlink { libc::AT_SYMLINK_NOFOLLOW } else { 0 };
+fn set_times(
+    p: &Path,
+    atime: Option<FileTime>,
+    mtime: Option<FileTime>,
+    symlink: bool,
+) -> io::Result<()> {
+    let flags = if symlink {
+        libc::AT_SYMLINK_NOFOLLOW
+    } else {
+        0
+    };
 
     // Same as the `if` statement above.
     static INVALID: AtomicBool = AtomicBool::new(false);
@@ -79,13 +88,13 @@ fn set_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>, symlink
             )
         };
         if rc == 0 {
-            return Ok(())
+            return Ok(());
         }
         let err = io::Error::last_os_error();
         if err.raw_os_error() == Some(libc::ENOSYS) {
             INVALID.store(true, SeqCst);
-        } else  {
-            return Err(err)
+        } else {
+            return Err(err);
         }
     }
 

@@ -1,15 +1,12 @@
-extern crate winapi;
-
-use std::ptr;
-use self::winapi::shared::minwindef::*;
-use self::winapi::um::fileapi::*;
-use self::winapi::um::winbase::*;
+use crate::FileTime;
 use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::os::windows::prelude::*;
 use std::path::Path;
-
-use FileTime;
+use std::ptr;
+use winapi::shared::minwindef::*;
+use winapi::um::fileapi::*;
+use winapi::um::winbase::*;
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     let f = OpenOptions::new().write(true).open(p)?;
@@ -37,8 +34,14 @@ pub fn set_file_handle_times(
         let ret = SetFileTime(
             f.as_raw_handle() as *mut _,
             ptr::null(),
-            atime.as_ref().map(|p| p as *const FILETIME).unwrap_or(ptr::null()),
-            mtime.as_ref().map(|p| p as *const FILETIME).unwrap_or(ptr::null()),
+            atime
+                .as_ref()
+                .map(|p| p as *const FILETIME)
+                .unwrap_or(ptr::null()),
+            mtime
+                .as_ref()
+                .map(|p| p as *const FILETIME)
+                .unwrap_or(ptr::null()),
         );
         if ret != 0 {
             Ok(())

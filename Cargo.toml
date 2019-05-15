@@ -11,6 +11,7 @@ documentation = "https://docs.rs/filetime"
 description = """
 Platform-agnostic accessors of timestamps in File metadata
 """
+edition = "2018"
 
 [dependencies]
 cfg-if = "0.1"

@@ -1,7 +1,7 @@
+use crate::FileTime;
 use std::fs::{self, File};
 use std::io;
 use std::path::Path;
-use FileTime;
 
 pub fn set_file_times(_p: &Path, _atime: FileTime, _mtime: FileTime) -> io::Result<()> {
     Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))

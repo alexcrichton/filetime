@@ -1,13 +1,9 @@
-extern crate libc;
-
+use crate::FileTime;
+use libc::{time_t, timespec};
 use std::fs;
 use std::os::unix::prelude::*;
 
-use self::libc::{timespec, time_t};
-
-use FileTime;
-
-cfg_if! {
+cfg_if::cfg_if! {
     if #[cfg(target_os = "linux")] {
         mod utimes;
         mod linux;

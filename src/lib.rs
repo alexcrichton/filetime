@@ -34,16 +34,13 @@
 //! println!("{}", mtime.seconds());
 //! ```
 
-#[macro_use]
-extern crate cfg_if;
-
 use std::fmt;
 use std::fs;
 use std::io;
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-cfg_if! {
+cfg_if::cfg_if! {
     if #[cfg(target_os = "redox")] {
         #[path = "redox.rs"]
         mod imp;
@@ -285,9 +282,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    extern crate tempdir;
-
-    use self::tempdir::TempDir;
+    use tempdir::TempDir;
     use super::{set_file_handle_times, set_file_times, set_symlink_file_times, FileTime};
     use std::fs::{self, File};
     use std::io;

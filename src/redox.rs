@@ -1,11 +1,8 @@
-extern crate syscall;
-
 use std::fs::{self, File};
 use std::io;
 use std::os::unix::prelude::*;
 use std::path::Path;
-
-use FileTime;
+use crate::FileTime;
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     let fd = syscall::open(p.as_os_str().as_bytes(), 0)
@@ -36,7 +33,7 @@ pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io:
 }
 
 fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    use self::syscall::TimeSpec;
+    use syscall::TimeSpec;
 
     fn to_timespec(ft: &FileTime) -> TimeSpec {
         TimeSpec {
