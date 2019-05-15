@@ -67,7 +67,7 @@ fn utimes(p: &Path,
 }
 
 #[allow(dead_code)]
-fn futimes(f: &mut fs::File,
+fn futimes(f: &fs::File,
     atime: FileTime,
     mtime: FileTime,
     futimes: unsafe extern fn(c_int, *const timeval) -> c_int
@@ -92,23 +92,22 @@ fn call_ns_helper(
     } else {
         Err(io::Error::last_os_error())
     };
+}
 
-    fn to_timespec(ft: &Option<FileTime>) -> timespec {
-        const UTIME_OMIT: i64 = 1073741822;
+fn to_timespec(ft: &Option<FileTime>) -> timespec {
+    const UTIME_OMIT: i64 = 1073741822;
 
-        if let &Some(ft) = ft {
-            timespec {
-                tv_sec: ft.seconds() as time_t,
-                tv_nsec: ft.nanoseconds() as _,
-            }
-        } else {
-            timespec {
-                tv_sec: 0,
-                tv_nsec: UTIME_OMIT,
-            }
+    if let &Some(ft) = ft {
+        timespec {
+            tv_sec: ft.seconds() as time_t,
+            tv_nsec: ft.nanoseconds() as _,
+        }
+    } else {
+        timespec {
+            tv_sec: 0,
+            tv_nsec: UTIME_OMIT,
         }
     }
-
 }
 
 #[allow(dead_code)]
@@ -128,19 +127,6 @@ fn utimensat(p: &Path,
     call_ns_helper(atime, mtime, call_utimensat)
 }
 
-
-fn futimens(f: &mut fs::File,
-    atime: Option<FileTime>,
-    mtime: Option<FileTime>,
-    func: unsafe extern fn(c_int, *const timespec) -> c_int
-) -> io::Result<()> {
-    let call_futimens = |times: &[timespec;2]| -> io::Result<c_int> {
-        Ok(unsafe {
-            func(f.as_raw_fd(), times.as_ptr())
-        })
-    };
-    call_ns_helper(atime, mtime, call_futimens)
-}
 
 pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
     FileTime {
