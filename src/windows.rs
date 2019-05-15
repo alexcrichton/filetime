@@ -1,5 +1,9 @@
-#![allow(bad_style)]
+extern crate winapi;
 
+use std::ptr;
+use self::winapi::shared::minwindef::*;
+use self::winapi::um::fileapi::*;
+use self::winapi::um::winbase::*;
 use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::os::windows::prelude::*;
@@ -7,64 +11,35 @@ use std::path::Path;
 
 use FileTime;
 
-pub fn set_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
-    let mut f = OpenOptions::new().write(true).open(p)?;
-    set_file_times_w(&mut f, atime, mtime)
+pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    let f = OpenOptions::new().write(true).open(p)?;
+    set_file_handle_times(&f, Some(atime), Some(mtime))
+}
+
+pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
+    let f = OpenOptions::new().write(true).open(p)?;
+    set_file_handle_times(&f, None, Some(mtime))
+}
+
+pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
+    let f = OpenOptions::new().write(true).open(p)?;
+    set_file_handle_times(&f, Some(atime), None)
 }
 
 pub fn set_file_handle_times(
-    f: &mut File,
+    f: &File,
     atime: Option<FileTime>,
     mtime: Option<FileTime>,
 ) -> io::Result<()> {
-    set_file_times_w(f, atime, mtime)
-}
-
-pub fn set_symlink_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
-    let (atime, mtime) = match (atime, mtime) {
-        (Some(atime), Some(mtime)) => (atime, mtime),
-        (None, None) => return Ok(()),
-        _ => unimplemented!("Must set both atime and mtime on Windows"),
-    };
-
-    use std::os::windows::fs::OpenOptionsExt;
-    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x00200000;
-
-    let mut f = OpenOptions::new()
-        .write(true)
-        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-        .open(p)?;
-    set_file_times_w(&mut f, Some(atime), Some(mtime))
-}
-
-fn set_file_times_w(
-    f: &mut File,
-    atime: Option<FileTime>,
-    mtime: Option<FileTime>,
-) -> io::Result<()> {
-    type BOOL = i32;
-    type HANDLE = *mut u8;
-    type DWORD = u32;
-
-    #[repr(C)]
-    struct FILETIME {
-        dwLowDateTime: u32,
-        dwHighDateTime: u32,
-    }
-
-    extern "system" {
-        fn SetFileTime(
-            hFile: HANDLE,
-            lpCreationTime: Option<& FILETIME>,
-            lpLastAccessTime: Option<& FILETIME>,
-            lpLastWriteTime: Option<& FILETIME>,
-        ) -> BOOL;
-    }
-
     let atime = atime.map(to_filetime);
     let mtime = mtime.map(to_filetime);
     return unsafe {
-        let ret = SetFileTime(f.as_raw_handle() as *mut _, None, atime.as_ref(), mtime.as_ref());
+        let ret = SetFileTime(
+            f.as_raw_handle() as *mut _,
+            ptr::null(),
+            atime.as_ref().map(|p| p as *const FILETIME).unwrap_or(ptr::null()),
+            mtime.as_ref().map(|p| p as *const FILETIME).unwrap_or(ptr::null()),
+        );
         if ret != 0 {
             Ok(())
         } else {
@@ -79,6 +54,16 @@ fn set_file_times_w(
             dwHighDateTime: (intervals >> 32) as DWORD,
         }
     }
+}
+
+pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    let f = OpenOptions::new()
+        .write(true)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(p)?;
+    set_file_handle_times(&f, Some(atime), Some(mtime))
 }
 
 pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {

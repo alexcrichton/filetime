@@ -18,14 +18,11 @@ cfg-if = "0.1"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[target.'cfg(windows)'.dependencies]
+winapi = { version = '0.3', features = ['fileapi', 'minwindef', 'winbase'] }
+
 [target.'cfg(target_os = "redox")'.dependencies]
 redox_syscall = "0.1"
 
 [dev-dependencies]
 tempdir = "0.3"
-
-[features]
-# On Unix platforms, forces the use of the `utimensat` syscall rather than the
-# older `utimes`. This will expose functions for setting only the mtime or only
-# the atime for a file, but will cause panics if `utimensat` cannot be called.
-utimensat = []

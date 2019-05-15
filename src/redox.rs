@@ -1,31 +1,35 @@
 extern crate syscall;
 
-use std::fs;
+use std::fs::{self, File};
 use std::io;
 use std::os::unix::prelude::*;
 use std::path::Path;
 
 use FileTime;
 
-pub fn set_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
-    let (atime, mtime) = match (atime, mtime) {
-        (Some(atime), Some(mtime)) => (atime, mtime),
-        (None, None) => return Ok(()),
-        _ => unimplemented!("Must set both atime and mtime on Redox"),
-    };
-
+pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     let fd = syscall::open(p.as_os_str().as_bytes(), 0)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     set_file_times_redox(fd, atime, mtime)
 }
 
-pub fn set_symlink_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
-    let (atime, mtime) = match (atime, mtime) {
-        (Some(atime), Some(mtime)) => (atime, mtime),
-        (None, None) => return Ok(()),
-        _ => unimplemented!("Must set both atime and mtime on Redox"),
-    };
+pub fn set_file_mtime(_p: &Path, _mtime: FileTime) -> io::Result<()> {
+    unimplemented!()
+}
 
+pub fn set_file_atime(_p: &Path, _atime: FileTime) -> io::Result<()> {
+    unimplemented!()
+}
+
+pub fn set_file_handle_times(
+    _f: &File,
+    _atime: Option<FileTime>,
+    _mtime: Option<FileTime>,
+) -> io::Result<()> {
+    unimplemented!()
+}
+
+pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_NOFOLLOW)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     set_file_times_redox(fd, atime, mtime)

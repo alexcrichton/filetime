@@ -220,15 +220,17 @@ pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime) -> io::Result<(
 where
     P: AsRef<Path>,
 {
-    imp::set_file_times(p.as_ref(), Some(atime), Some(mtime))
+    imp::set_file_times(p.as_ref(), atime, mtime)
 }
 
 /// Set the last access and modification times for a file handle.
 ///
 /// This function will either or both of  the `atime` and `mtime` metadata
-/// fields for a file handle , returning any error encountered.
+/// fields for a file handle , returning any error encountered. If `None` is
+/// specified then the time won't be updated. If `None` is specified for both
+/// options then no action is taken.
 pub fn set_file_handle_times(
-    f: &mut fs::File,
+    f: &fs::File,
     atime: Option<FileTime>,
     mtime: Option<FileTime>,
 ) -> io::Result<()> {
@@ -244,7 +246,7 @@ pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime) -> io::
 where
     P: AsRef<Path>,
 {
-    imp::set_symlink_file_times(p.as_ref(), Some(atime), Some(mtime))
+    imp::set_symlink_file_times(p.as_ref(), atime, mtime)
 }
 
 /// Set the last modification time for a file on the filesystem.
@@ -252,25 +254,16 @@ where
 /// This function will set the `mtime` metadata field for a file on the local
 /// filesystem, returning any error encountered.
 ///
-/// Currently only supported on Unix platforms with the `utimensat` feature
-/// enabled.
-#[cfg(all(
-    feature = "utimensat",
-    any(
-        target_os = "linux",
-        target_os = "android",
-        target_os = "solaris",
-        target_os = "emscripten",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd"
-    )
-))]
+/// # Platform support
+///
+/// Where supported this will attempt to issue just one syscall to update only
+/// the `mtime`, but where not supported this may issue one syscall to learn the
+/// existing `atime` so only the `mtime` can be configured.
 pub fn set_file_mtime<P>(p: P, mtime: FileTime) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
-    imp::set_file_times(p.as_ref(), None, Some(mtime))
+    imp::set_file_mtime(p.as_ref(), mtime)
 }
 
 /// Set the last access time for a file on the filesystem.
@@ -278,25 +271,16 @@ where
 /// This function will set the `atime` metadata field for a file on the local
 /// filesystem, returning any error encountered.
 ///
-/// Currently only supported on Unix platforms with the `utimensat` feature
-/// enabled.
-#[cfg(all(
-    feature = "utimensat",
-    any(
-        target_os = "linux",
-        target_os = "android",
-        target_os = "solaris",
-        target_os = "emscripten",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd"
-    )
-))]
+/// # Platform support
+///
+/// Where supported this will attempt to issue just one syscall to update only
+/// the `atime`, but where not supported this may issue one syscall to learn the
+/// existing `mtime` so only the `atime` can be configured.
 pub fn set_file_atime<P>(p: P, atime: FileTime) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
-    imp::set_file_times(p.as_ref(), Some(atime), None)
+    imp::set_file_atime(p.as_ref(), atime)
 }
 
 #[cfg(test)]

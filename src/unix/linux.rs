@@ -12,8 +12,16 @@ use std::os::unix::prelude::*;
 
 use FileTime;
 
-pub fn set_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
-    set_times(p, atime, mtime, false)
+pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    set_times(p, Some(atime), Some(mtime), false)
+}
+
+pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
+    set_times(p, None, Some(mtime), false)
+}
+
+pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
+    set_times(p, Some(atime), None, false)
 }
 
 pub fn set_file_handle_times(
@@ -46,14 +54,11 @@ pub fn set_file_handle_times(
         }
     }
 
-    // Safe to unwrap atime and mtime -- without the utimensat feature enabled,
-    // the public API only exposes methods that intialize atime and mtime as
-    // Some.
-    super::futimes(f, atime.unwrap(), mtime.unwrap(), libc::futimes)
+    super::utimes::set_file_handle_times(f, atime, mtime)
 }
 
-pub fn set_symlink_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
-    set_times(p, atime, mtime, true)
+pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+    set_times(p, Some(atime), Some(mtime), true)
 }
 
 fn set_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>, symlink: bool) -> io::Result<()> {
@@ -84,9 +89,5 @@ fn set_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>, symlink
         }
     }
 
-    let utimes = if symlink { libc::lutimes } else { libc::utimes };
-
-    // Safe to unwrap atime and mtime -- without the utimensat feature enabled, the public API
-    // only exposes methods that intialize atime and mtime as Some.
-    super::utimes(p, atime.unwrap(), mtime.unwrap(), utimes)
+    super::utimes::set_times(p, atime, mtime, symlink)
 }
