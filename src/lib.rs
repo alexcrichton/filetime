@@ -522,18 +522,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(
-        feature = "utimensat",
-        any(
-            target_os = "linux",
-            target_os = "android",
-            target_os = "solaris",
-            target_os = "emscripten",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        )
-    ))]
     fn set_single_time_test() {
         use super::{set_file_atime, set_file_mtime};
 
