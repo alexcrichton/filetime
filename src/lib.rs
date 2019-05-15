@@ -75,12 +75,18 @@ impl FileTime {
     ///
     /// Useful for creating the base of a cmp::max chain of times.
     pub fn zero() -> FileTime {
-        FileTime { seconds: 0, nanos: 0 }
+        FileTime {
+            seconds: 0,
+            nanos: 0,
+        }
     }
 
     fn emulate_second_only_system(self) -> FileTime {
         if cfg!(emulate_second_only_system) {
-            FileTime {seconds: self.seconds, nanos: 0}
+            FileTime {
+                seconds: self.seconds,
+                nanos: 0,
+            }
         } else {
             self
         }
@@ -98,9 +104,10 @@ impl FileTime {
     /// instance may not be the same as that passed in.
     pub fn from_unix_time(seconds: i64, nanos: u32) -> FileTime {
         FileTime {
-            seconds: seconds + if cfg!(windows) {11644473600} else {0},
+            seconds: seconds + if cfg!(windows) { 11644473600 } else { 0 },
             nanos,
-        }.emulate_second_only_system()
+        }
+        .emulate_second_only_system()
     }
 
     /// Creates a new timestamp from the last modification time listed in the
@@ -144,23 +151,25 @@ impl FileTime {
             UNIX_EPOCH
         };
 
-        time.duration_since(epoch).map(|d| FileTime {
-            seconds: d.as_secs() as i64,
-            nanos: d.subsec_nanos()
-        })
-        .unwrap_or_else(|e| {
-            let until_epoch = e.duration();
-            let (sec_offset, nanos) = if until_epoch.subsec_nanos() == 0 {
-                (0, 0)
-            } else {
-                (-1, 1_000_000_000 - until_epoch.subsec_nanos())
-            };
+        time.duration_since(epoch)
+            .map(|d| FileTime {
+                seconds: d.as_secs() as i64,
+                nanos: d.subsec_nanos(),
+            })
+            .unwrap_or_else(|e| {
+                let until_epoch = e.duration();
+                let (sec_offset, nanos) = if until_epoch.subsec_nanos() == 0 {
+                    (0, 0)
+                } else {
+                    (-1, 1_000_000_000 - until_epoch.subsec_nanos())
+                };
 
-            FileTime {
-                seconds: -1 * until_epoch.as_secs() as i64 + sec_offset,
-                nanos
-            }
-        }).emulate_second_only_system()
+                FileTime {
+                    seconds: -1 * until_epoch.as_secs() as i64 + sec_offset,
+                    nanos,
+                }
+            })
+            .emulate_second_only_system()
     }
 
     /// Returns the whole number of seconds represented by this timestamp.
@@ -168,7 +177,9 @@ impl FileTime {
     /// Note that this value's meaning is **platform specific**. On Unix
     /// platform time stamps are typically relative to January 1, 1970, but on
     /// Windows platforms time stamps are relative to January 1, 1601.
-    pub fn seconds(&self) -> i64 { self.seconds }
+    pub fn seconds(&self) -> i64 {
+        self.seconds
+    }
 
     /// Returns the whole number of seconds represented by this timestamp,
     /// relative to the Unix epoch start of January 1, 1970.
@@ -176,7 +187,7 @@ impl FileTime {
     /// Note that this does not return the same value as `seconds` for Windows
     /// platforms as seconds are relative to a different date there.
     pub fn unix_seconds(&self) -> i64 {
-        self.seconds - if cfg!(windows) {11644473600} else {0}
+        self.seconds - if cfg!(windows) { 11644473600 } else { 0 }
     }
 
     /// Returns the nanosecond precision of this timestamp.
@@ -184,7 +195,9 @@ impl FileTime {
     /// The returned value is always less than one billion and represents a
     /// portion of a second forward from the seconds returned by the `seconds`
     /// method.
-    pub fn nanoseconds(&self) -> u32 { self.nanos }
+    pub fn nanoseconds(&self) -> u32 {
+        self.nanos
+    }
 }
 
 impl fmt::Display for FileTime {
@@ -203,11 +216,23 @@ impl From<SystemTime> for FileTime {
 ///
 /// This function will set the `atime` and `mtime` metadata fields for a file
 /// on the local filesystem, returning any error encountered.
-pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
-    -> io::Result<()>
-    where P: AsRef<Path>
+pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime) -> io::Result<()>
+where
+    P: AsRef<Path>,
 {
     imp::set_file_times(p.as_ref(), Some(atime), Some(mtime))
+}
+
+/// Set the last access and modification times for a file handle.
+///
+/// This function will either or both of  the `atime` and `mtime` metadata
+/// fields for a file handle , returning any error encountered.
+pub fn set_file_handle_times(
+    f: &mut fs::File,
+    atime: Option<FileTime>,
+    mtime: Option<FileTime>,
+) -> io::Result<()> {
+    imp::set_file_handle_times(f, atime, mtime)
 }
 
 /// Set the last access and modification times for a file on the filesystem.
@@ -215,9 +240,9 @@ pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
 ///
 /// This function will set the `atime` and `mtime` metadata fields for a file
 /// on the local filesystem, returning any error encountered.
-pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
-    -> io::Result<()>
-    where P: AsRef<Path>
+pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime) -> io::Result<()>
+where
+    P: AsRef<Path>,
 {
     imp::set_symlink_file_times(p.as_ref(), Some(atime), Some(mtime))
 }
@@ -229,17 +254,21 @@ pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime)
 ///
 /// Currently only supported on Unix platforms with the `utimensat` feature
 /// enabled.
-#[cfg(all(feature = "utimensat",
-          any(target_os = "linux",
-              target_os = "android",
-              target_os = "solaris",
-              target_os = "emscripten",
-              target_os = "freebsd",
-              target_os = "netbsd",
-              target_os = "openbsd")))]
-pub fn set_file_mtime<P>(p: P, mtime: FileTime)
-    -> io::Result<()>
-    where P: AsRef<Path>
+#[cfg(all(
+    feature = "utimensat",
+    any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "solaris",
+        target_os = "emscripten",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    )
+))]
+pub fn set_file_mtime<P>(p: P, mtime: FileTime) -> io::Result<()>
+where
+    P: AsRef<Path>,
 {
     imp::set_file_times(p.as_ref(), None, Some(mtime))
 }
@@ -251,17 +280,21 @@ pub fn set_file_mtime<P>(p: P, mtime: FileTime)
 ///
 /// Currently only supported on Unix platforms with the `utimensat` feature
 /// enabled.
-#[cfg(all(feature = "utimensat",
-          any(target_os = "linux",
-              target_os = "android",
-              target_os = "solaris",
-              target_os = "emscripten",
-              target_os = "freebsd",
-              target_os = "netbsd",
-              target_os = "openbsd")))]
-pub fn set_file_atime<P>(p: P, atime: FileTime)
-    -> io::Result<()>
-    where P: AsRef<Path>
+#[cfg(all(
+    feature = "utimensat",
+    any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "solaris",
+        target_os = "emscripten",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    )
+))]
+pub fn set_file_atime<P>(p: P, atime: FileTime) -> io::Result<()>
+where
+    P: AsRef<Path>,
 {
     imp::set_file_times(p.as_ref(), Some(atime), None)
 }
@@ -270,26 +303,28 @@ pub fn set_file_atime<P>(p: P, atime: FileTime)
 mod tests {
     extern crate tempdir;
 
+    use self::tempdir::TempDir;
+    use super::{set_file_handle_times, set_file_times, set_symlink_file_times, FileTime};
+    use std::fs::{self, File};
     use std::io;
     use std::path::Path;
-    use std::fs::{self, File};
-    use self::tempdir::TempDir;
-    use super::{FileTime, set_file_times, set_symlink_file_times};
     use std::time::{Duration, UNIX_EPOCH};
 
     #[cfg(unix)]
-    fn make_symlink<P,Q>(src: P, dst: Q) -> io::Result<()>
-        where P: AsRef<Path>,
-              Q: AsRef<Path>,
+    fn make_symlink<P, Q>(src: P, dst: Q) -> io::Result<()>
+    where
+        P: AsRef<Path>,
+        Q: AsRef<Path>,
     {
         use std::os::unix::fs::symlink;
         symlink(src, dst)
     }
 
     #[cfg(windows)]
-    fn make_symlink<P,Q>(src: P, dst: Q) -> io::Result<()>
-        where P: AsRef<Path>,
-              Q: AsRef<Path>,
+    fn make_symlink<P, Q>(src: P, dst: Q) -> io::Result<()>
+    where
+        P: AsRef<Path>,
+        Q: AsRef<Path>,
     {
         use std::os::windows::fs::symlink_file;
         symlink_file(src, dst)
@@ -368,47 +403,66 @@ mod tests {
     }
 
     #[test]
-    fn set_file_times_test() {
-        let td = TempDir::new("filetime").unwrap();
+    fn set_file_times_test() -> io::Result<()> {
+        let td = TempDir::new("filetime")?;
         let path = td.path().join("foo.txt");
-        File::create(&path).unwrap();
+        let mut f = File::create(&path)?;
 
-        let metadata = fs::metadata(&path).unwrap();
+        let metadata = fs::metadata(&path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         let atime = FileTime::from_last_access_time(&metadata);
-        set_file_times(&path, atime, mtime).unwrap();
+        set_file_times(&path, atime, mtime)?;
 
         let new_mtime = FileTime::from_unix_time(10_000, 0);
-        set_file_times(&path, atime, new_mtime).unwrap();
+        set_file_times(&path, atime, new_mtime)?;
 
-        let metadata = fs::metadata(&path).unwrap();
+        let metadata = fs::metadata(&path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, new_mtime);
 
+        // Update just mtime
+        let new_mtime = FileTime::from_unix_time(20_000, 0);
+        set_file_handle_times(&mut f, None, Some(new_mtime))?;
+        let metadata = f.metadata()?;
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, new_mtime);
+        let new_atime = FileTime::from_last_access_time(&metadata);
+        assert_eq!(atime, new_atime);
+
+        // Update just atime
+        let new_atime = FileTime::from_unix_time(30_000, 0);
+        set_file_handle_times(&mut f, Some(new_atime), None)?;
+        let metadata = f.metadata()?;
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        assert_eq!(mtime, new_mtime);
+        let atime = FileTime::from_last_access_time(&metadata);
+        assert_eq!(atime, new_atime);
+
         let spath = td.path().join("bar.txt");
-        make_symlink(&path, &spath).unwrap();
-        let metadata = fs::symlink_metadata(&spath).unwrap();
+        make_symlink(&path, &spath)?;
+        let metadata = fs::symlink_metadata(&spath)?;
         let smtime = FileTime::from_last_modification_time(&metadata);
 
-        set_file_times(&spath, atime, mtime).unwrap();
+        set_file_times(&spath, atime, mtime)?;
 
-        let metadata = fs::metadata(&path).unwrap();
+        let metadata = fs::metadata(&path)?;
         let cur_mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, cur_mtime);
 
-        let metadata = fs::symlink_metadata(&spath).unwrap();
+        let metadata = fs::symlink_metadata(&spath)?;
         let cur_mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(smtime, cur_mtime);
 
-        set_file_times(&spath, atime, new_mtime).unwrap();
+        set_file_times(&spath, atime, new_mtime)?;
 
-        let metadata = fs::metadata(&path).unwrap();
+        let metadata = fs::metadata(&path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, new_mtime);
 
-        let metadata = fs::symlink_metadata(&spath).unwrap();
+        let metadata = fs::symlink_metadata(&spath)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, smtime);
+        Ok(())
     }
 
     #[test]
@@ -489,16 +543,20 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(feature = "utimensat",
-              any(target_os = "linux",
-                  target_os = "android",
-                  target_os = "solaris",
-                  target_os = "emscripten",
-                  target_os = "freebsd",
-                  target_os = "netbsd",
-                  target_os = "openbsd")))]
+    #[cfg(all(
+        feature = "utimensat",
+        any(
+            target_os = "linux",
+            target_os = "android",
+            target_os = "solaris",
+            target_os = "emscripten",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )
+    ))]
     fn set_single_time_test() {
-        use super::{set_file_mtime, set_file_atime};
+        use super::{set_file_atime, set_file_mtime};
 
         let td = TempDir::new("filetime").unwrap();
         let path = td.path().join("foo.txt");

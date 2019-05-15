@@ -29,16 +29,14 @@ cfg_if! {
     }
 }
 
-#[allow(dead_code)]
-fn utimes(p: &Path,
+fn call_s_helper(
           atime: FileTime,
           mtime: FileTime,
-          utimes: unsafe extern fn(*const c_char, *const timeval) -> c_int)
-    -> io::Result<()>
-{
+          set_times: impl Fn(&[timeval; 2]) -> io::Result<c_int>
+) -> io::Result<()> {
     let times = [to_timeval(&atime), to_timeval(&mtime)];
-    let p = try!(CString::new(p.as_os_str().as_bytes()));
-    return if unsafe { utimes(p.as_ptr() as *const _, times.as_ptr()) == 0 } {
+    let rc = set_times(&times)?;
+    return if rc == 0  {
         Ok(())
     } else {
         Err(io::Error::last_os_error())
@@ -50,21 +48,45 @@ fn utimes(p: &Path,
             tv_usec: (ft.nanoseconds() / 1000) as suseconds_t,
         }
     }
+
+}
+
+
+#[allow(dead_code)]
+fn utimes(p: &Path,
+          atime: FileTime,
+          mtime: FileTime,
+          utimes: unsafe extern fn(*const c_char, *const timeval) -> c_int)
+    -> io::Result<()>
+{
+    let call_utimes = |times: &[timeval;2]| -> io::Result<c_int> {
+        let p = CString::new(p.as_os_str().as_bytes())?;
+        Ok(unsafe { utimes(p.as_ptr() as *const _, times.as_ptr()) })
+    };
+    call_s_helper(atime, mtime, call_utimes)
 }
 
 #[allow(dead_code)]
-fn utimensat(p: &Path,
-             atime: Option<FileTime>,
-             mtime: Option<FileTime>,
-             f: unsafe extern fn(c_int, *const c_char, *const timespec, c_int) -> c_int,
-             flags: c_int)
-    -> io::Result<()>
-{
-    let times = [to_timespec(&atime), to_timespec(&mtime)];
-    let p = try!(CString::new(p.as_os_str().as_bytes()));
-    let rc = unsafe {
-        f(libc::AT_FDCWD, p.as_ptr() as *const _, times.as_ptr(), flags)
+fn futimes(f: &mut fs::File,
+    atime: FileTime,
+    mtime: FileTime,
+    futimes: unsafe extern fn(c_int, *const timeval) -> c_int
+) -> io::Result<()> {
+    let call_futimes = |times: &[timeval;2]| -> io::Result<c_int> {
+        Ok(unsafe { futimes(f.as_raw_fd(), times.as_ptr()) })
     };
+    call_s_helper(atime, mtime, call_futimes)
+
+}
+
+fn call_ns_helper(
+        atime: Option<FileTime>,
+        mtime: Option<FileTime>,
+        set_times: impl Fn(&[timespec;2])->io::Result<c_int>
+        ) -> io::Result<()> {
+    let times = [to_timespec(&atime), to_timespec(&mtime)];
+    let rc = set_times(&times)?;
+
     return if rc == 0 {
         Ok(())
     } else {
@@ -86,6 +108,38 @@ fn utimensat(p: &Path,
             }
         }
     }
+
+}
+
+#[allow(dead_code)]
+fn utimensat(p: &Path,
+             atime: Option<FileTime>,
+             mtime: Option<FileTime>,
+             f: unsafe extern fn(c_int, *const c_char, *const timespec, c_int) -> c_int,
+             flags: c_int)
+    -> io::Result<()>
+{
+    let call_utimensat = |times: &[timespec;2]| -> io::Result<c_int> {
+        let p = CString::new(p.as_os_str().as_bytes())?;
+        Ok(unsafe {
+            f(libc::AT_FDCWD, p.as_ptr() as *const _, times.as_ptr(), flags)
+        })
+    };
+    call_ns_helper(atime, mtime, call_utimensat)
+}
+
+
+fn futimens(f: &mut fs::File,
+    atime: Option<FileTime>,
+    mtime: Option<FileTime>,
+    func: unsafe extern fn(c_int, *const timespec) -> c_int
+) -> io::Result<()> {
+    let call_futimens = |times: &[timespec;2]| -> io::Result<c_int> {
+        Ok(unsafe {
+            func(f.as_raw_fd(), times.as_ptr())
+        })
+    };
+    call_ns_helper(atime, mtime, call_futimens)
 }
 
 pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {

@@ -1,6 +1,6 @@
 #![allow(bad_style)]
 
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::os::windows::prelude::*;
 use std::path::Path;
@@ -8,13 +8,16 @@ use std::path::Path;
 use FileTime;
 
 pub fn set_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
-    let (atime, mtime) = match (atime, mtime) {
-        (Some(atime), Some(mtime)) => (atime, mtime),
-        (None, None) => return Ok(()),
-        _ => unimplemented!("Must set both atime and mtime on Windows"),
-    };
+    let mut f = OpenOptions::new().write(true).open(p)?;
+    set_file_times_w(&mut f, atime, mtime)
+}
 
-    set_file_times_w(p, atime, mtime, OpenOptions::new())
+pub fn set_file_handle_times(
+    f: &mut File,
+    atime: Option<FileTime>,
+    mtime: Option<FileTime>,
+) -> io::Result<()> {
+    set_file_times_w(f, atime, mtime)
 }
 
 pub fn set_symlink_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
@@ -27,15 +30,18 @@ pub fn set_symlink_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<F
     use std::os::windows::fs::OpenOptionsExt;
     const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x00200000;
 
-    let mut options = OpenOptions::new();
-    options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
-    set_file_times_w(p, atime, mtime, options)
+    let mut f = OpenOptions::new()
+        .write(true)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(p)?;
+    set_file_times_w(&mut f, Some(atime), Some(mtime))
 }
 
-pub fn set_file_times_w(p: &Path,
-                        atime: FileTime,
-                        mtime: FileTime,
-                        mut options: OpenOptions) -> io::Result<()> {
+fn set_file_times_w(
+    f: &mut File,
+    atime: Option<FileTime>,
+    mtime: Option<FileTime>,
+) -> io::Result<()> {
     type BOOL = i32;
     type HANDLE = *mut u8;
     type DWORD = u32;
@@ -47,19 +53,18 @@ pub fn set_file_times_w(p: &Path,
     }
 
     extern "system" {
-        fn SetFileTime(hFile: HANDLE,
-                       lpCreationTime: *const FILETIME,
-                       lpLastAccessTime: *const FILETIME,
-                       lpLastWriteTime: *const FILETIME) -> BOOL;
+        fn SetFileTime(
+            hFile: HANDLE,
+            lpCreationTime: Option<& FILETIME>,
+            lpLastAccessTime: Option<& FILETIME>,
+            lpLastWriteTime: Option<& FILETIME>,
+        ) -> BOOL;
     }
 
-    let f = try!(options.write(true).open(p));
-    let atime = to_filetime(&atime);
-    let mtime = to_filetime(&mtime);
+    let atime = atime.map(to_filetime);
+    let mtime = mtime.map(to_filetime);
     return unsafe {
-        let ret = SetFileTime(f.as_raw_handle() as *mut _,
-                              0 as *const _,
-                              &atime, &mtime);
+        let ret = SetFileTime(f.as_raw_handle() as *mut _, None, atime.as_ref(), mtime.as_ref());
         if ret != 0 {
             Ok(())
         } else {
@@ -67,9 +72,8 @@ pub fn set_file_times_w(p: &Path,
         }
     };
 
-    fn to_filetime(ft: &FileTime) -> FILETIME {
-        let intervals = ft.seconds() * (1_000_000_000 / 100) +
-                        ((ft.nanoseconds() as i64) / 100);
+    fn to_filetime(ft: FileTime) -> FILETIME {
+        let intervals = ft.seconds() * (1_000_000_000 / 100) + ((ft.nanoseconds() as i64) / 100);
         FILETIME {
             dwLowDateTime: intervals as DWORD,
             dwHighDateTime: (intervals >> 32) as DWORD,

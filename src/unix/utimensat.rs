@@ -8,6 +8,13 @@ pub fn set_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>
     super::utimensat(p, atime, mtime, libc::utimensat, 0)
 }
 
+pub fn set_file_handle_times(f: &mut File,
+    atime: Option<FileTime>,
+    mtime: Option<FileTime>,
+) -> io::Result<()> {
+    super::futimens(f, atime, mtime, libc::futimens)
+}
+
 pub fn set_symlink_file_times(p: &Path, atime: Option<FileTime>, mtime: Option<FileTime>) -> io::Result<()> {
     super::utimensat(p, atime, mtime, libc::utimensat, libc::AT_SYMLINK_NOFOLLOW)
 }
