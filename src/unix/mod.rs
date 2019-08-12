@@ -8,6 +8,10 @@ cfg_if::cfg_if! {
         mod utimes;
         mod linux;
         pub use self::linux::*;
+    } else if #[cfg(target_os = "macos")] {
+        mod utimes;
+        mod macos;
+        pub use self::macos::*;
     } else if #[cfg(any(target_os = "android",
                         target_os = "solaris",
                         target_os = "emscripten",
@@ -24,7 +28,14 @@ cfg_if::cfg_if! {
 
 #[allow(dead_code)]
 fn to_timespec(ft: &Option<FileTime>) -> timespec {
-    const UTIME_OMIT: i64 = 1073741822;
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "macos")] {
+            // https://github.com/apple/darwin-xnu/blob/a449c6a3b8014d9406c2ddbdc81795da24aa7443/bsd/sys/stat.h#L541
+            const UTIME_OMIT: i64 = -2;
+        } else {
+            const UTIME_OMIT: i64 = 1_073_741_822;
+        }
+    }
 
     if let &Some(ft) = ft {
         timespec {

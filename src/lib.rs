@@ -282,12 +282,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use tempdir::TempDir;
     use super::{set_file_handle_times, set_file_times, set_symlink_file_times, FileTime};
     use std::fs::{self, File};
     use std::io;
     use std::path::Path;
     use std::time::{Duration, UNIX_EPOCH};
+    use tempdir::TempDir;
 
     #[cfg(unix)]
     fn make_symlink<P, Q>(src: P, dst: Q) -> io::Result<()>
@@ -397,25 +397,25 @@ mod tests {
 
         let metadata = fs::metadata(&path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        assert_eq!(mtime, new_mtime);
+        assert_eq!(mtime, new_mtime, "modification should be updated");
 
         // Update just mtime
         let new_mtime = FileTime::from_unix_time(20_000, 0);
         set_file_handle_times(&mut f, None, Some(new_mtime))?;
         let metadata = f.metadata()?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        assert_eq!(mtime, new_mtime);
+        assert_eq!(mtime, new_mtime, "modification time should be updated");
         let new_atime = FileTime::from_last_access_time(&metadata);
-        assert_eq!(atime, new_atime);
+        assert_eq!(atime, new_atime, "accessed time should not be updated");
 
         // Update just atime
         let new_atime = FileTime::from_unix_time(30_000, 0);
         set_file_handle_times(&mut f, Some(new_atime), None)?;
         let metadata = f.metadata()?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        assert_eq!(mtime, new_mtime);
+        assert_eq!(mtime, new_mtime, "modification time should not be updated");
         let atime = FileTime::from_last_access_time(&metadata);
-        assert_eq!(atime, new_atime);
+        assert_eq!(atime, new_atime, "accessed time should be updated");
 
         let spath = td.path().join("bar.txt");
         make_symlink(&path, &spath)?;
@@ -539,15 +539,23 @@ mod tests {
 
         let metadata = fs::metadata(&path).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
-        assert_eq!(mtime, new_mtime);
-        assert_eq!(atime, FileTime::from_last_access_time(&metadata));
+        assert_eq!(mtime, new_mtime, "modification time should be updated");
+        assert_eq!(
+            atime,
+            FileTime::from_last_access_time(&metadata),
+            "access time should not be updated",
+        );
 
         let new_atime = FileTime::from_unix_time(20_000, 0);
         set_file_atime(&path, new_atime).unwrap();
 
         let metadata = fs::metadata(&path).unwrap();
         let atime = FileTime::from_last_access_time(&metadata);
-        assert_eq!(atime, new_atime);
-        assert_eq!(mtime, FileTime::from_last_modification_time(&metadata));
+        assert_eq!(atime, new_atime, "access time should be updated");
+        assert_eq!(
+            mtime,
+            FileTime::from_last_modification_time(&metadata),
+            "modification time should not be updated"
+        );
     }
 }
