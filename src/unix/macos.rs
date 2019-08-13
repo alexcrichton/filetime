@@ -2,7 +2,7 @@
 //! and if not, we fallabck to `utimes`.
 use crate::FileTime;
 use libc::{c_char, c_int, timespec};
-use std::ffi::CString;
+use std::ffi::{CString, CStr};
 use std::fs::File;
 use std::os::unix::prelude::*;
 use std::path::Path;
@@ -78,39 +78,33 @@ fn utimensat() -> Option<unsafe extern "C" fn(c_int, *const c_char, *const times
 {
     static ADDR: AtomicUsize = AtomicUsize::new(0);
     unsafe {
-        match ADDR.load(SeqCst) {
-            0 => {}
-            1 => return None,
-            n => return Some(mem::transmute(n)),
-        }
-        let name = b"utimensat\0";
-        let sym = libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr() as *const _);
-        let (val, ret) = if sym.is_null() {
-            (1, None)
-        } else {
-            (sym as usize, Some(mem::transmute(sym)))
-        };
-        ADDR.store(val, SeqCst);
-        return ret;
+        fetch(&ADDR, CStr::from_bytes_with_nul_unchecked(b"utimensat\0"))
+            .map(|sym| mem::transmute(sym))
     }
 }
 
 fn futimens() -> Option<unsafe extern "C" fn(c_int, *const timespec) -> c_int> {
     static ADDR: AtomicUsize = AtomicUsize::new(0);
     unsafe {
-        match ADDR.load(SeqCst) {
-            0 => {}
-            1 => return None,
-            n => return Some(mem::transmute(n)),
-        }
-        let name = b"futimens\0";
-        let sym = libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr() as *const _);
-        let (val, ret) = if sym.is_null() {
-            (1, None)
-        } else {
-            (sym as usize, Some(mem::transmute(sym)))
-        };
-        ADDR.store(val, SeqCst);
-        return ret;
+        fetch(&ADDR, CStr::from_bytes_with_nul_unchecked(b"futimens\0"))
+            .map(|sym| mem::transmute(sym))
     }
+}
+
+fn fetch(cache: &AtomicUsize, name: &CStr) -> Option<usize> {
+    match cache.load(SeqCst) {
+        0 => {}
+        1 => return None,
+        n => return Some(n),
+    }
+    let sym = unsafe {
+        libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr() as *const _)
+    };
+    let (val, ret) = if sym.is_null() {
+        (1, None)
+    } else {
+        (sym as usize, Some(sym as usize))
+    };
+    cache.store(val, SeqCst);
+    return ret;
 }
