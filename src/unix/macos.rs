@@ -7,7 +7,7 @@ use std::fs::File;
 use std::os::unix::prelude::*;
 use std::path::Path;
 use std::sync::atomic::Ordering::SeqCst;
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::AtomicUsize;
 use std::{io, mem};
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
@@ -29,18 +29,13 @@ pub fn set_file_handle_times(
 ) -> io::Result<()> {
     // Attempt to use the `futimens` syscall, but if it's not supported by the
     // current kernel then fall back to an older syscall.
-    static INVALID: AtomicBool = AtomicBool::new(false);
-    if !INVALID.load(SeqCst) {
-        if let Some(func) = futimens() {
-            let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
-            let rc = unsafe { func(f.as_raw_fd(), times.as_ptr()) };
-            if rc == 0 {
-                return Ok(());
-            } else {
-                return Err(io::Error::last_os_error());
-            }
+    if let Some(func) = futimens() {
+        let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
+        let rc = unsafe { func(f.as_raw_fd(), times.as_ptr()) };
+        if rc == 0 {
+            return Ok(());
         } else {
-            INVALID.store(true, SeqCst);
+            return Err(io::Error::last_os_error());
         }
     }
 
@@ -59,25 +54,20 @@ fn set_times(
 ) -> io::Result<()> {
     // Attempt to use the `utimensat` syscall, but if it's not supported by the
     // current kernel then fall back to an older syscall.
-    static INVALID: AtomicBool = AtomicBool::new(false);
-    if !INVALID.load(SeqCst) {
-        if let Some(func) = utimensat() {
-            let flags = if symlink {
-                libc::AT_SYMLINK_NOFOLLOW
-            } else {
-                0
-            };
-
-            let p = CString::new(p.as_os_str().as_bytes())?;
-            let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
-            let rc = unsafe { func(libc::AT_FDCWD, p.as_ptr(), times.as_ptr(), flags) };
-            if rc == 0 {
-                return Ok(());
-            } else {
-                return Err(io::Error::last_os_error());
-            }
+    if let Some(func) = utimensat() {
+        let flags = if symlink {
+            libc::AT_SYMLINK_NOFOLLOW
         } else {
-            INVALID.store(true, SeqCst);
+            0
+        };
+
+        let p = CString::new(p.as_os_str().as_bytes())?;
+        let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
+        let rc = unsafe { func(libc::AT_FDCWD, p.as_ptr(), times.as_ptr(), flags) };
+        if rc == 0 {
+            return Ok(());
+        } else {
+            return Err(io::Error::last_os_error());
         }
     }
 
