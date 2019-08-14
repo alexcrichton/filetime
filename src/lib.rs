@@ -9,7 +9,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! filetime = "0.1"
+//! filetime = "0.2"
 //! ```
 //!
 //! # Usage
