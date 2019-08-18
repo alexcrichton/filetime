@@ -287,7 +287,7 @@ mod tests {
     use std::io;
     use std::path::Path;
     use std::time::{Duration, UNIX_EPOCH};
-    use tempdir::TempDir;
+    use tempfile::Builder;
 
     #[cfg(unix)]
     fn make_symlink<P, Q>(src: P, dst: Q) -> io::Result<()>
@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn set_file_times_test() -> io::Result<()> {
-        let td = TempDir::new("filetime")?;
+        let td = Builder::new().prefix("filetime").tempdir()?;
         let path = td.path().join("foo.txt");
         let mut f = File::create(&path)?;
 
@@ -446,7 +446,7 @@ mod tests {
 
     #[test]
     fn set_file_times_pre_unix_epoch_test() {
-        let td = TempDir::new("filetime").unwrap();
+        let td = Builder::new().prefix("filetime").tempdir().unwrap();
         let path = td.path().join("foo.txt");
         File::create(&path).unwrap();
 
@@ -466,7 +466,7 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn set_file_times_pre_windows_epoch_test() {
-        let td = TempDir::new("filetime").unwrap();
+        let td = Builder::new().prefix("filetime").tempdir().unwrap();
         let path = td.path().join("foo.txt");
         File::create(&path).unwrap();
 
@@ -481,7 +481,7 @@ mod tests {
 
     #[test]
     fn set_symlink_file_times_test() {
-        let td = TempDir::new("filetime").unwrap();
+        let td = Builder::new().prefix("filetime").tempdir().unwrap();
         let path = td.path().join("foo.txt");
         File::create(&path).unwrap();
 
@@ -525,7 +525,7 @@ mod tests {
     fn set_single_time_test() {
         use super::{set_file_atime, set_file_mtime};
 
-        let td = TempDir::new("filetime").unwrap();
+        let td = Builder::new().prefix("filetime").tempdir().unwrap();
         let path = td.path().join("foo.txt");
         File::create(&path).unwrap();
 
