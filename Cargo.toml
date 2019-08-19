@@ -26,4 +26,4 @@ winapi = { version = '0.3', features = ['fileapi', 'minwindef', 'winbase'] }
 redox_syscall = "0.1"
 
 [dev-dependencies]
-tempdir = "0.3"
+tempfile = "3"
