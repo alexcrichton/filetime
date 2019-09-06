@@ -1,8 +1,5 @@
 # filetime
 
-[![Build Status](https://travis-ci.org/alexcrichton/filetime.svg?branch=master)](https://travis-ci.org/alexcrichton/filetime)
-[![Build status](https://ci.appveyor.com/api/projects/status/9tatexq47i3ee13k?svg=true)](https://ci.appveyor.com/project/alexcrichton/filetime)
-
 [Documentation](https://docs.rs/filetime)
 
 A helper library for inspecting and setting the various timestamps of files in Rust. This
