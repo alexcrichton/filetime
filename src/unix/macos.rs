@@ -2,12 +2,12 @@
 //! and if not, we fallabck to `utimes`.
 use crate::FileTime;
 use libc::{c_char, c_int, timespec};
-use std::ffi::{CString, CStr};
+use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::os::unix::prelude::*;
 use std::path::Path;
-use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering::SeqCst;
 use std::{io, mem};
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
@@ -31,12 +31,8 @@ pub fn set_file_handle_times(
     // current kernel then fall back to an older syscall.
     if let Some(func) = futimens() {
         let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
-        let rc = unsafe { func(f.as_raw_fd(), times.as_ptr()) };
-        if rc == 0 {
-            return Ok(());
-        } else {
-            return Err(io::Error::last_os_error());
-        }
+        cvt(unsafe { func(f.as_raw_fd(), times.as_ptr()) })?;
+        return Ok(());
     }
 
     super::utimes::set_file_handle_times(f, atime, mtime)
@@ -63,12 +59,8 @@ fn set_times(
 
         let p = CString::new(p.as_os_str().as_bytes())?;
         let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
-        let rc = unsafe { func(libc::AT_FDCWD, p.as_ptr(), times.as_ptr(), flags) };
-        if rc == 0 {
-            return Ok(());
-        } else {
-            return Err(io::Error::last_os_error());
-        }
+        cvt(unsafe { func(libc::AT_FDCWD, p.as_ptr(), times.as_ptr(), flags) })?;
+        return Ok(());
     }
 
     super::utimes::set_times(p, atime, mtime, symlink)
@@ -97,9 +89,7 @@ fn fetch(cache: &AtomicUsize, name: &CStr) -> Option<usize> {
         1 => return None,
         n => return Some(n),
     }
-    let sym = unsafe {
-        libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr() as *const _)
-    };
+    let sym = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr() as *const _) };
     let (val, ret) = if sym.is_null() {
         (1, None)
     } else {

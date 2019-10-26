@@ -15,6 +15,7 @@ edition = "2018"
 
 [dependencies]
 cfg-if = "0.1"
+cvt = "0.1.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

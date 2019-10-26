@@ -23,12 +23,8 @@ pub fn set_file_handle_times(
     mtime: Option<FileTime>,
 ) -> io::Result<()> {
     let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
-    let rc = unsafe { libc::futimens(f.as_raw_fd(), times.as_ptr()) };
-    if rc == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
+    cvt(unsafe { libc::futimens(f.as_raw_fd(), times.as_ptr()) })?;
+    Ok(())
 }
 
 pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
@@ -49,10 +45,6 @@ fn set_times(
 
     let p = CString::new(p.as_os_str().as_bytes())?;
     let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
-    let rc = unsafe { libc::utimensat(libc::AT_FDCWD, p.as_ptr(), times.as_ptr(), flags) };
-    if rc == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
+    cvt(unsafe { libc::utimensat(libc::AT_FDCWD, p.as_ptr(), times.as_ptr(), flags) })?;
+    Ok(())
 }

@@ -3,6 +3,7 @@
 //! `utimensat` at runtime.
 
 use crate::FileTime;
+use cvt::cvt;
 use std::ffi::CString;
 use std::fs;
 use std::io;
@@ -34,7 +35,7 @@ pub fn set_file_handle_times(
     static INVALID: AtomicBool = AtomicBool::new(false);
     if !INVALID.load(SeqCst) {
         let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
-        let rc = unsafe {
+        let res = cvt(unsafe {
             libc::syscall(
                 libc::SYS_utimensat,
                 f.as_raw_fd(),
@@ -42,15 +43,11 @@ pub fn set_file_handle_times(
                 times.as_ptr(),
                 0,
             )
-        };
-        if rc == 0 {
-            return Ok(());
-        }
-        let err = io::Error::last_os_error();
-        if err.raw_os_error() == Some(libc::ENOSYS) {
-            INVALID.store(true, SeqCst);
-        } else {
-            return Err(err);
+        });
+        match res {
+            Ok(_) => return Ok(()),
+            Err(ref e) if e.raw_os_error() == Some(libc::ENOSYS) => INVALID.store(true, SeqCst),
+            Err(e) => return Err(e),
         }
     }
 
@@ -78,7 +75,7 @@ fn set_times(
     if !INVALID.load(SeqCst) {
         let p = CString::new(p.as_os_str().as_bytes())?;
         let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
-        let rc = unsafe {
+        let res = cvt(unsafe {
             libc::syscall(
                 libc::SYS_utimensat,
                 libc::AT_FDCWD,
@@ -86,15 +83,11 @@ fn set_times(
                 times.as_ptr(),
                 flags,
             )
-        };
-        if rc == 0 {
-            return Ok(());
-        }
-        let err = io::Error::last_os_error();
-        if err.raw_os_error() == Some(libc::ENOSYS) {
-            INVALID.store(true, SeqCst);
-        } else {
-            return Err(err);
+        });
+        match res {
+            Ok(_) => return Ok(()),
+            Err(ref e) if e.raw_os_error() == Some(libc::ENOSYS) => INVALID.store(true, SeqCst),
+            Err(e) => return Err(e),
         }
     }
 

@@ -1,4 +1,5 @@
 use crate::FileTime;
+use cvt::cvt;
 use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::os::windows::prelude::*;
@@ -28,10 +29,18 @@ pub fn set_file_handle_times(
     atime: Option<FileTime>,
     mtime: Option<FileTime>,
 ) -> io::Result<()> {
+    fn to_filetime(ft: FileTime) -> FILETIME {
+        let intervals = ft.seconds() * (1_000_000_000 / 100) + ((ft.nanoseconds() as i64) / 100);
+        FILETIME {
+            dwLowDateTime: intervals as DWORD,
+            dwHighDateTime: (intervals >> 32) as DWORD,
+        }
+    }
+
     let atime = atime.map(to_filetime);
     let mtime = mtime.map(to_filetime);
-    return unsafe {
-        let ret = SetFileTime(
+    cvt(unsafe {
+        SetFileTime(
             f.as_raw_handle() as *mut _,
             ptr::null(),
             atime
@@ -42,21 +51,9 @@ pub fn set_file_handle_times(
                 .as_ref()
                 .map(|p| p as *const FILETIME)
                 .unwrap_or(ptr::null()),
-        );
-        if ret != 0 {
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        }
-    };
-
-    fn to_filetime(ft: FileTime) -> FILETIME {
-        let intervals = ft.seconds() * (1_000_000_000 / 100) + ((ft.nanoseconds() as i64) / 100);
-        FILETIME {
-            dwLowDateTime: intervals as DWORD,
-            dwHighDateTime: (intervals >> 32) as DWORD,
-        }
-    }
+        )
+    })?;
+    Ok(())
 }
 
 pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {

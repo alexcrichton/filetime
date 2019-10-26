@@ -1,4 +1,5 @@
 use crate::FileTime;
+use cvt::cvt;
 use std::ffi::CString;
 use std::fs;
 use std::io;
@@ -31,12 +32,8 @@ pub fn set_file_handle_times(
         None => return Ok(()),
     };
     let times = [to_timeval(&atime), to_timeval(&mtime)];
-    let rc = unsafe { libc::futimes(f.as_raw_fd(), times.as_ptr()) };
-    return if rc == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    };
+    cvt(unsafe { libc::futimes(f.as_raw_fd(), times.as_ptr()) })?;
+    Ok(())
 }
 
 fn get_times(
@@ -76,18 +73,14 @@ pub fn set_times(
     };
     let p = CString::new(p.as_os_str().as_bytes())?;
     let times = [to_timeval(&atime), to_timeval(&mtime)];
-    let rc = unsafe {
+    cvt(unsafe {
         if symlink {
             libc::lutimes(p.as_ptr(), times.as_ptr())
         } else {
             libc::utimes(p.as_ptr(), times.as_ptr())
         }
-    };
-    return if rc == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    };
+    })?;
+    Ok(())
 }
 
 fn to_timeval(ft: &FileTime) -> libc::timeval {
