@@ -32,9 +32,12 @@ jobs:
             rust: stable-x86_64-gnu
     steps:
     - uses: actions/checkout@master
+    - name: Install Rust (windows)
+      run: (rustup update ${{ matrix.rust }}) -and (rustup default ${{ matrix.rust }})
+      if: matrix.os == 'windows-latest'
     - name: Install Rust (rustup)
       run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
-      if: matrix.os != 'macos-latest'
+      if: matrix.os == 'ubuntu-latest'
     - name: Install Rust (macos)
       run: |
         curl https://sh.rustup.rs | sh -s -- -y
