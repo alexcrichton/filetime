@@ -1,8 +1,8 @@
+use crate::FileTime;
 use std::fs::{self, File};
 use std::io;
 use std::os::unix::prelude::*;
 use std::path::Path;
-use crate::FileTime;
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     let fd = syscall::open(p.as_os_str().as_bytes(), 0)
@@ -38,7 +38,7 @@ fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Resu
     fn to_timespec(ft: &FileTime) -> TimeSpec {
         TimeSpec {
             tv_sec: ft.seconds(),
-            tv_nsec: ft.nanoseconds() as i32
+            tv_nsec: ft.nanoseconds() as i32,
         }
     }
 
@@ -47,7 +47,7 @@ fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Resu
     let _ = syscall::close(fd);
     match res {
         Ok(_) => Ok(()),
-        Err(err) => Err(io::Error::from_raw_os_error(err.errno))
+        Err(err) => Err(io::Error::from_raw_os_error(err.errno)),
     }
 }
 

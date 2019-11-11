@@ -2,12 +2,12 @@
 //! and if not, we fallabck to `utimes`.
 use crate::FileTime;
 use libc::{c_char, c_int, timespec};
-use std::ffi::{CString, CStr};
+use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::os::unix::prelude::*;
 use std::path::Path;
-use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering::SeqCst;
 use std::{io, mem};
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
@@ -97,9 +97,7 @@ fn fetch(cache: &AtomicUsize, name: &CStr) -> Option<usize> {
         1 => return None,
         n => return Some(n),
     }
-    let sym = unsafe {
-        libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr() as *const _)
-    };
+    let sym = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr() as *const _) };
     let (val, ret) = if sym.is_null() {
         (1, None)
     } else {
