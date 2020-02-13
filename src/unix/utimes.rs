@@ -121,6 +121,9 @@ fn to_timeval(ft: &FileTime) -> libc::timeval {
 fn to_timespec(ft: &FileTime) -> libc::timespec {
     libc::timespec {
         tv_sec: ft.seconds() as libc::time_t,
-        tv_nsec: (ft.nanoseconds()) as libc::suseconds_t,
+        #[cfg(all(target_arch = "x86_64", target_pointer_width = "32"))]
+        tv_nsec: (ft.nanoseconds()) as i64,
+        #[cfg(not(all(target_arch = "x86_64", target_pointer_width = "32")))]
+        tv_nsec: (ft.nanoseconds()) as libc::c_long,
     }
 }
