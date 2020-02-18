@@ -20,6 +20,7 @@ pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
     set_times(p, Some(atime), None, false)
 }
 
+#[cfg(not(target_env = "uclibc"))]
 #[allow(dead_code)]
 pub fn set_file_handle_times(
     f: &fs::File,
@@ -32,6 +33,26 @@ pub fn set_file_handle_times(
     };
     let times = [to_timeval(&atime), to_timeval(&mtime)];
     let rc = unsafe { libc::futimes(f.as_raw_fd(), times.as_ptr()) };
+    return if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    };
+}
+
+#[cfg(target_env = "uclibc")]
+#[allow(dead_code)]
+pub fn set_file_handle_times(
+    f: &fs::File,
+    atime: Option<FileTime>,
+    mtime: Option<FileTime>,
+) -> io::Result<()> {
+    let (atime, mtime) = match get_times(atime, mtime, || f.metadata())? {
+        Some(pair) => pair,
+        None => return Ok(()),
+    };
+    let times = [to_timespec(&atime), to_timespec(&mtime)];
+    let rc = unsafe { libc::futimens(f.as_raw_fd(), times.as_ptr()) };
     return if rc == 0 {
         Ok(())
     } else {
@@ -94,5 +115,15 @@ fn to_timeval(ft: &FileTime) -> libc::timeval {
     libc::timeval {
         tv_sec: ft.seconds() as libc::time_t,
         tv_usec: (ft.nanoseconds() / 1000) as libc::suseconds_t,
+    }
+}
+
+fn to_timespec(ft: &FileTime) -> libc::timespec {
+    libc::timespec {
+        tv_sec: ft.seconds() as libc::time_t,
+        #[cfg(all(target_arch = "x86_64", target_pointer_width = "32"))]
+        tv_nsec: (ft.nanoseconds()) as i64,
+        #[cfg(not(all(target_arch = "x86_64", target_pointer_width = "32")))]
+        tv_nsec: (ft.nanoseconds()) as libc::c_long,
     }
 }
