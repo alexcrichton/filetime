@@ -89,6 +89,25 @@ impl FileTime {
         }
     }
 
+    /// Creates a new timestamp representing the current system time.
+    ///
+    /// ```
+    /// # use filetime::FileTime;
+    /// #
+    /// # fn example() -> std::io::Result<()> {
+    /// #     let path = "";
+    /// #
+    /// filetime::set_file_mtime(path, FileTime::now())?;
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Equivalent to `FileTime::from_system_time(SystemTime::now())`.
+    pub fn now() -> FileTime {
+        FileTime::from_system_time(SystemTime::now())
+    }
+
     /// Creates a new instance of `FileTime` with a number of seconds and
     /// nanoseconds relative to the Unix epoch, 1970-01-01T00:00:00Z.
     ///
