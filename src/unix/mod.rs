@@ -14,6 +14,7 @@ cfg_if::cfg_if! {
         pub use self::macos::*;
     } else if #[cfg(any(target_os = "android",
                         target_os = "solaris",
+                        target_os = "illumos",
                         target_os = "emscripten",
                         target_os = "freebsd",
                         target_os = "netbsd",
