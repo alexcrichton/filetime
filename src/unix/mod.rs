@@ -18,7 +18,8 @@ cfg_if::cfg_if! {
                         target_os = "emscripten",
                         target_os = "freebsd",
                         target_os = "netbsd",
-                        target_os = "openbsd"))] {
+                        target_os = "openbsd",
+                        target_os = "haiku"))] {
         mod utimensat;
         pub use self::utimensat::*;
     } else {
