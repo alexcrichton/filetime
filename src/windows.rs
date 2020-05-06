@@ -9,17 +9,26 @@ use winapi::um::fileapi::*;
 use winapi::um::winbase::*;
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    let f = OpenOptions::new().write(true).open(p)?;
+    let f = OpenOptions::new()
+        .write(true)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(p)?;
     set_file_handle_times(&f, Some(atime), Some(mtime))
 }
 
 pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
-    let f = OpenOptions::new().write(true).open(p)?;
+    let f = OpenOptions::new()
+        .write(true)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(p)?;
     set_file_handle_times(&f, None, Some(mtime))
 }
 
 pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
-    let f = OpenOptions::new().write(true).open(p)?;
+    let f = OpenOptions::new()
+        .write(true)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(p)?;
     set_file_handle_times(&f, Some(atime), None)
 }
 
@@ -64,7 +73,7 @@ pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io:
 
     let f = OpenOptions::new()
         .write(true)
-        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
         .open(p)?;
     set_file_handle_times(&f, Some(atime), Some(mtime))
 }
