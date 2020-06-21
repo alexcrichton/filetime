@@ -7,29 +7,75 @@ use std::path::Path;
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     let fd = syscall::open(p.as_os_str().as_bytes(), 0)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
-    set_file_times_redox(fd, atime, mtime)
+    let res = set_file_times_redox(fd, atime, mtime);
+    let _ = syscall::close(fd);
+    res
 }
 
-pub fn set_file_mtime(_p: &Path, _mtime: FileTime) -> io::Result<()> {
-    unimplemented!()
+pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
+    let fd = syscall::open(p.as_os_str().as_bytes(), 0)
+        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
+    let mut st = syscall::Stat::default();
+    let res = match syscall::fstat(fd, &mut st) {
+        Err(err) => Err(io::Error::from_raw_os_error(err.errno)),
+        Ok(_) => set_file_times_redox(
+            fd,
+            FileTime {
+                seconds: st.st_atime as i64,
+                nanos: st.st_atime_nsec as u32,
+            },
+            mtime,
+        ),
+    };
+    let _ = syscall::close(fd);
+    res
 }
 
-pub fn set_file_atime(_p: &Path, _atime: FileTime) -> io::Result<()> {
-    unimplemented!()
-}
-
-pub fn set_file_handle_times(
-    _f: &File,
-    _atime: Option<FileTime>,
-    _mtime: Option<FileTime>,
-) -> io::Result<()> {
-    unimplemented!()
+pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
+    let fd = syscall::open(p.as_os_str().as_bytes(), 0)
+        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
+    let mut st = syscall::Stat::default();
+    let res = match syscall::fstat(fd, &mut st) {
+        Err(err) => Err(io::Error::from_raw_os_error(err.errno)),
+        Ok(_) => set_file_times_redox(
+            fd,
+            atime,
+            FileTime {
+                seconds: st.st_mtime as i64,
+                nanos: st.st_mtime_nsec as u32,
+            },
+        ),
+    };
+    let _ = syscall::close(fd);
+    res
 }
 
 pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_NOFOLLOW)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
-    set_file_times_redox(fd, atime, mtime)
+    let res = set_file_times_redox(fd, atime, mtime);
+    let _ = syscall::close(fd);
+    res
+}
+
+pub fn set_file_handle_times(
+    f: &File,
+    atime: Option<FileTime>,
+    mtime: Option<FileTime>,
+) -> io::Result<()> {
+    let (atime1, mtime1) = match (atime, mtime) {
+        (Some(a), Some(b)) => (a, b),
+        (None, None) => return Ok(()),
+        (Some(a), None) => {
+            let meta = f.metadata()?;
+            (a, FileTime::from_last_modification_time(&meta))
+        }
+        (None, Some(b)) => {
+            let meta = f.metadata()?;
+            (FileTime::from_last_access_time(&meta), b)
+        }
+    };
+    set_file_times_redox(f.as_raw_fd() as usize, atime1, mtime1)
 }
 
 fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Result<()> {
@@ -43,9 +89,7 @@ fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Resu
     }
 
     let times = [to_timespec(&atime), to_timespec(&mtime)];
-    let res = syscall::futimens(fd, &times);
-    let _ = syscall::close(fd);
-    match res {
+    match syscall::futimens(fd, &times) {
         Ok(_) => Ok(()),
         Err(err) => Err(io::Error::from_raw_os_error(err.errno)),
     }
