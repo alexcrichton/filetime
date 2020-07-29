@@ -8,12 +8,15 @@ cfg_if::cfg_if! {
         mod utimes;
         mod linux;
         pub use self::linux::*;
+    } else if #[cfg(target_os = "android")] {
+        mod utimes;
+        mod android;
+        pub use self::android::*;
     } else if #[cfg(target_os = "macos")] {
         mod utimes;
         mod macos;
         pub use self::macos::*;
-    } else if #[cfg(any(target_os = "android",
-                        target_os = "solaris",
+    } else if #[cfg(any(target_os = "solaris",
                         target_os = "illumos",
                         target_os = "emscripten",
                         target_os = "freebsd",
