@@ -37,6 +37,9 @@ fn to_timespec(ft: &Option<FileTime>) -> timespec {
         if #[cfg(target_os = "macos")] {
             // https://github.com/apple/darwin-xnu/blob/a449c6a3b8014d9406c2ddbdc81795da24aa7443/bsd/sys/stat.h#L541
             const UTIME_OMIT: i64 = -2;
+        } else if #[cfg(target_os = "openbsd")] {
+            // https://github.com/openbsd/src/blob/master/sys/sys/stat.h#L189
+            const UTIME_OMIT: i64 = -1;
         } else {
             const UTIME_OMIT: i64 = 1_073_741_822;
         }
