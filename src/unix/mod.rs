@@ -9,7 +9,6 @@ cfg_if::cfg_if! {
         mod linux;
         pub use self::linux::*;
     } else if #[cfg(target_os = "android")] {
-        mod utimes;
         mod android;
         pub use self::android::*;
     } else if #[cfg(target_os = "macos")] {

@@ -46,6 +46,15 @@ jobs:
       run: rustup update stable && rustup default stable && rustup component add rustfmt
     - run: cargo fmt -- --check
 
+  android_build:
+    name: Android build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: Install Rust
+      run: rustup update stable && rustup default stable && rustup target add x86_64-linux-android
+    - run: cargo build --target x86_64-linux-android
+
   publish_docs:
     name: Publish Documentation
     runs-on: ubuntu-latest
