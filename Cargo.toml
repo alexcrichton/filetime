@@ -14,7 +14,7 @@ Platform-agnostic accessors of timestamps in File metadata
 edition = "2018"
 
 [dependencies]
-cfg-if = "0.1.6"
+cfg-if = "1.0.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.27"
