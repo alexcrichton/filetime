@@ -5,7 +5,7 @@ use std::os::unix::prelude::*;
 use std::path::Path;
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    let fd = syscall::open(p.as_os_str().as_bytes(), 0)
+    let fd = open_redox(p, 0)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     let res = set_file_times_redox(fd, atime, mtime);
     let _ = syscall::close(fd);
@@ -13,7 +13,7 @@ pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<
 }
 
 pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
-    let fd = syscall::open(p.as_os_str().as_bytes(), 0)
+    let fd = open_redox(p, 0)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     let mut st = syscall::Stat::default();
     let res = match syscall::fstat(fd, &mut st) {
@@ -32,7 +32,7 @@ pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
 }
 
 pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
-    let fd = syscall::open(p.as_os_str().as_bytes(), 0)
+    let fd = open_redox(p, 0)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     let mut st = syscall::Stat::default();
     let res = match syscall::fstat(fd, &mut st) {
@@ -51,7 +51,7 @@ pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
 }
 
 pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    let fd = syscall::open(p.as_os_str().as_bytes(), syscall::O_NOFOLLOW)
+    let fd = open_redox(p, syscall::O_NOFOLLOW)
         .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     let res = set_file_times_redox(fd, atime, mtime);
     let _ = syscall::close(fd);
@@ -76,6 +76,13 @@ pub fn set_file_handle_times(
         }
     };
     set_file_times_redox(f.as_raw_fd() as usize, atime1, mtime1)
+}
+
+fn open_redox(path: &Path, flags: usize) -> syscall::Result<usize> {
+    match path.to_str() {
+        Some(string) => syscall::open(string, flags),
+        None => Err(syscall::Error::new(syscall::EINVAL)),
+    }
 }
 
 fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Result<()> {
