@@ -1,5 +1,5 @@
-//! Beginning with MacOS 10.3, `utimensat` is supported by the MacOS, so here, we check if the symbol exists
-//! and if not, we fallabck to `utimes`.
+//! Beginning with macOS 10.13, `utimensat` is supported by the OS, so here, we check if the symbol exists
+//! and if not, we fallback to `utimes`.
 use crate::FileTime;
 use libc::{c_char, c_int, timespec};
 use std::ffi::{CStr, CString};
