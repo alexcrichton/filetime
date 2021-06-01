@@ -5,16 +5,14 @@ use std::os::unix::prelude::*;
 use std::path::Path;
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    let fd = open_redox(p, 0)
-        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
+    let fd = open_redox(p, 0).map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     let res = set_file_times_redox(fd, atime, mtime);
     let _ = syscall::close(fd);
     res
 }
 
 pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
-    let fd = open_redox(p, 0)
-        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
+    let fd = open_redox(p, 0).map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     let mut st = syscall::Stat::default();
     let res = match syscall::fstat(fd, &mut st) {
         Err(err) => Err(io::Error::from_raw_os_error(err.errno)),
@@ -32,8 +30,7 @@ pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
 }
 
 pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
-    let fd = open_redox(p, 0)
-        .map_err(|err| io::Error::from_raw_os_error(err.errno))?;
+    let fd = open_redox(p, 0).map_err(|err| io::Error::from_raw_os_error(err.errno))?;
     let mut st = syscall::Stat::default();
     let res = match syscall::fstat(fd, &mut st) {
         Err(err) => Err(io::Error::from_raw_os_error(err.errno)),
