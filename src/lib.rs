@@ -71,14 +71,14 @@ impl FileTime {
     /// Creates a new timestamp representing a 0 time.
     ///
     /// Useful for creating the base of a cmp::max chain of times.
-    pub fn zero() -> FileTime {
+    pub const fn zero() -> FileTime {
         FileTime {
             seconds: 0,
             nanos: 0,
         }
     }
 
-    fn emulate_second_only_system(self) -> FileTime {
+    const fn emulate_second_only_system(self) -> FileTime {
         if cfg!(emulate_second_only_system) {
             FileTime {
                 seconds: self.seconds,
@@ -118,7 +118,7 @@ impl FileTime {
     /// from, but on Windows the native time stamp is relative to January 1,
     /// 1601 so the return value of `seconds` from the returned `FileTime`
     /// instance may not be the same as that passed in.
-    pub fn from_unix_time(seconds: i64, nanos: u32) -> FileTime {
+    pub const fn from_unix_time(seconds: i64, nanos: u32) -> FileTime {
         FileTime {
             seconds: seconds + if cfg!(windows) { 11644473600 } else { 0 },
             nanos,
@@ -193,7 +193,7 @@ impl FileTime {
     /// Note that this value's meaning is **platform specific**. On Unix
     /// platform time stamps are typically relative to January 1, 1970, but on
     /// Windows platforms time stamps are relative to January 1, 1601.
-    pub fn seconds(&self) -> i64 {
+    pub const fn seconds(&self) -> i64 {
         self.seconds
     }
 
@@ -202,7 +202,7 @@ impl FileTime {
     ///
     /// Note that this does not return the same value as `seconds` for Windows
     /// platforms as seconds are relative to a different date there.
-    pub fn unix_seconds(&self) -> i64 {
+    pub const fn unix_seconds(&self) -> i64 {
         self.seconds - if cfg!(windows) { 11644473600 } else { 0 }
     }
 
@@ -211,7 +211,7 @@ impl FileTime {
     /// The returned value is always less than one billion and represents a
     /// portion of a second forward from the seconds returned by the `seconds`
     /// method.
-    pub fn nanoseconds(&self) -> u32 {
+    pub const fn nanoseconds(&self) -> u32 {
         self.nanos
     }
 }
