@@ -118,6 +118,7 @@ fn to_timeval(ft: &FileTime) -> libc::timeval {
     }
 }
 
+#[cfg(target_env = "uclibc")]
 fn to_timespec(ft: &FileTime) -> libc::timespec {
     libc::timespec {
         tv_sec: ft.seconds() as libc::time_t,

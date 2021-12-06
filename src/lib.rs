@@ -630,7 +630,7 @@ mod tests {
     fn set_symlink_dir_times_test() {
         let td = Builder::new().prefix("filetime").tempdir().unwrap();
         let path = td.path().join("foo");
-        fs::create_dir(&path);
+        fs::create_dir(&path).unwrap();
 
         let metadata = fs::metadata(&path).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
