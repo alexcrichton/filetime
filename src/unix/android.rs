@@ -37,7 +37,7 @@ pub fn set_file_handle_times(
 }
 
 pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
-    set_times(p, Some(atime), Some(mtime), false)
+    set_times(p, Some(atime), Some(mtime), true)
 }
 
 fn set_times(
