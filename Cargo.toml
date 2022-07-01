@@ -19,8 +19,12 @@ cfg-if = "1.0.0"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.27"
 
-[target.'cfg(windows)'.dependencies]
-winapi = { version = '0.3', features = ['fileapi', 'minwindef', 'winbase'] }
+[target.'cfg(windows)'.dependencies.windows-sys]
+version = "0.36.0"
+features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem"
+]
 
 [target.'cfg(target_os = "redox")'.dependencies]
 redox_syscall = "0.2.9"
