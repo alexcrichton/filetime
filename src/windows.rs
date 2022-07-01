@@ -39,8 +39,8 @@ pub fn set_file_handle_times(
 ) -> io::Result<()> {
     let atime = atime.map(to_filetime);
     let mtime = mtime.map(to_filetime);
-    return unsafe {
-        let ret = SetFileTime(
+    return {
+        let ret = unsafe {SetFileTime(
             f.as_raw_handle() as *mut _,
             ptr::null(),
             atime
@@ -51,7 +51,7 @@ pub fn set_file_handle_times(
                 .as_ref()
                 .map(|p| p as *const FILETIME)
                 .unwrap_or(ptr::null()),
-        );
+        )};
         if ret != 0 {
             Ok(())
         } else {
