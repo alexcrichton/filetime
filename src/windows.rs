@@ -4,9 +4,8 @@ use std::io;
 use std::os::windows::prelude::*;
 use std::path::Path;
 use std::ptr;
-use winapi::shared::minwindef::*;
-use winapi::um::fileapi::*;
-use winapi::um::winbase::*;
+use windows_sys::Win32::Foundation::{FILETIME, HANDLE};
+use windows_sys::Win32::Storage::FileSystem::*;
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     let f = OpenOptions::new()
@@ -41,7 +40,7 @@ pub fn set_file_handle_times(
     let mtime = mtime.map(to_filetime);
     return unsafe {
         let ret = SetFileTime(
-            f.as_raw_handle() as *mut _,
+            f.as_raw_handle() as HANDLE,
             ptr::null(),
             atime
                 .as_ref()
@@ -62,8 +61,8 @@ pub fn set_file_handle_times(
     fn to_filetime(ft: FileTime) -> FILETIME {
         let intervals = ft.seconds() * (1_000_000_000 / 100) + ((ft.nanoseconds() as i64) / 100);
         FILETIME {
-            dwLowDateTime: intervals as DWORD,
-            dwHighDateTime: (intervals >> 32) as DWORD,
+            dwLowDateTime: intervals as u32,
+            dwHighDateTime: (intervals >> 32) as u32,
         }
     }
 }
