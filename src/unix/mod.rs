@@ -15,7 +15,8 @@ cfg_if::cfg_if! {
         mod utimes;
         mod macos;
         pub use self::macos::*;
-    } else if #[cfg(any(target_os = "solaris",
+    } else if #[cfg(any(target_os = "aix",
+                        target_os = "solaris",
                         target_os = "illumos",
                         target_os = "emscripten",
                         target_os = "freebsd",
@@ -46,6 +47,10 @@ fn to_timespec(ft: &Option<FileTime>) -> timespec {
         } else if #[cfg(target_os = "haiku")] {
             // https://git.haiku-os.org/haiku/tree/headers/posix/sys/stat.h?#n106
             const UTIME_OMIT: i64 = 1000000001;
+        } else if #[cfg(target_os = "aix")] {
+            // AIX hasn't disclosed system header files yet.
+            // https://github.com/golang/go/blob/master/src/cmd/vendor/golang.org/x/sys/unix/zerrors_aix_ppc64.go#L1007
+            const UTIME_OMIT: i64 = -3;
         } else {
             // http://cvsweb.netbsd.org/bsdweb.cgi/src/sys/sys/stat.h?annotate=1.68.30.1
             // https://github.com/emscripten-core/emscripten/blob/master/system/include/libc/sys/stat.h#L71
