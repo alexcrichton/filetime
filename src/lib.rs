@@ -550,6 +550,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "aix"))]
     fn set_file_times_pre_unix_epoch_test() {
         let td = Builder::new().prefix("filetime").tempdir().unwrap();
         let path = td.path().join("foo.txt");
@@ -566,6 +567,24 @@ mod tests {
         let metadata = fs::metadata(&path).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, new_mtime);
+    }
+
+    #[test]
+    #[cfg(target_os = "aix")]
+    fn set_file_times_pre_unix_epoch_test() {
+        let td = Builder::new().prefix("filetime").tempdir().unwrap();
+        let path = td.path().join("foo.txt");
+        File::create(&path).unwrap();
+
+        let metadata = fs::metadata(&path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        let atime = FileTime::from_last_access_time(&metadata);
+        set_file_times(&path, atime, mtime).unwrap();
+
+        let new_mtime = FileTime::from_unix_time(-10_000, 0);
+        let result = set_file_times(&path, atime, new_mtime);
+        assert!(result.is_err());
+        assert!(result.err().unwrap().kind() == std::io::ErrorKind::InvalidInput);
     }
 
     #[test]
