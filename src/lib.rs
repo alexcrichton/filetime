@@ -561,11 +561,18 @@ mod tests {
         set_file_times(&path, atime, mtime).unwrap();
 
         let new_mtime = FileTime::from_unix_time(-10_000, 0);
-        set_file_times(&path, atime, new_mtime).unwrap();
+        if cfg!(target_os = "aix") {
+            // On AIX, os checks if the unix timestamp is valid.
+            let result = set_file_times(&path, atime, new_mtime);
+            assert!(result.is_err());
+            assert!(result.err().unwrap().kind() == std::io::ErrorKind::InvalidInput);
+        } else {
+            set_file_times(&path, atime, new_mtime).unwrap();
 
-        let metadata = fs::metadata(&path).unwrap();
-        let mtime = FileTime::from_last_modification_time(&metadata);
-        assert_eq!(mtime, new_mtime);
+            let metadata = fs::metadata(&path).unwrap();
+            let mtime = FileTime::from_last_modification_time(&metadata);
+            assert_eq!(mtime, new_mtime);
+        }
     }
 
     #[test]
