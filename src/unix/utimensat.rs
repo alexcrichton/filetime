@@ -42,6 +42,12 @@ fn set_times(
     symlink: bool,
 ) -> io::Result<()> {
     let flags = if symlink {
+        if cfg!(target_os = "emscripten") {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "emscripten does not support utimensat for symlinks",
+            ));
+        }
         libc::AT_SYMLINK_NOFOLLOW
     } else {
         0
