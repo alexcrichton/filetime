@@ -47,7 +47,7 @@ cfg_if::cfg_if! {
     } else if #[cfg(windows)] {
         #[path = "windows.rs"]
         mod imp;
-    } else if #[cfg(target_family = "wasm")] {
+    } else if #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))] {
         #[path = "wasm.rs"]
         mod imp;
     } else {
