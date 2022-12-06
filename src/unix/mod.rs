@@ -58,17 +58,16 @@ fn to_timespec(ft: &Option<FileTime>) -> timespec {
         }
     }
 
+    let mut ts: timespec = unsafe { std::mem::zeroed() };
     if let &Some(ft) = ft {
-        timespec {
-            tv_sec: ft.seconds() as time_t,
-            tv_nsec: ft.nanoseconds() as _,
-        }
+        ts.tv_sec = ft.seconds() as time_t;
+        ts.tv_nsec = ft.nanoseconds() as _;
     } else {
-        timespec {
-            tv_sec: 0,
-            tv_nsec: UTIME_OMIT as _,
-        }
+        ts.tv_sec = 0;
+        ts.tv_nsec = UTIME_OMIT as _;
     }
+
+    ts
 }
 
 pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {

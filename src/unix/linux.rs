@@ -34,6 +34,11 @@ pub fn set_file_handle_times(
     static INVALID: AtomicBool = AtomicBool::new(false);
     if !INVALID.load(SeqCst) {
         let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
+
+        // We normally use a syscall because the `utimensat` function is documented
+        // as not accepting a file descriptor in the first argument (even though, on
+        // Linux, the syscall itself can accept a file descriptor there).
+        #[cfg(not(target_env = "musl"))]
         let rc = unsafe {
             libc::syscall(
                 libc::SYS_utimensat,
@@ -43,6 +48,24 @@ pub fn set_file_handle_times(
                 0,
             )
         };
+        // However, on musl, we call the musl libc function instead. This is because
+        // on newer musl versions starting with musl 1.2, `timespec` is always a 64-bit
+        // value even on 32-bit targets. As a result, musl internally converts their
+        // `timespec` values to the correct ABI before invoking the syscall. Since we
+        // use `timespec` from the libc crate, it matches musl's definition and not
+        // the Linux kernel's version (for some platforms) so we must use musl's
+        // `utimensat` function to properly convert the value. musl's `utimensat`
+        // function allows file descriptors in the path argument so this is fine.
+        #[cfg(target_env = "musl")]
+        let rc = unsafe {
+            libc::utimensat(
+                f.as_raw_fd(),
+                ptr::null::<libc::c_char>(),
+                times.as_ptr(),
+                0,
+            )
+        };
+
         if rc == 0 {
             return Ok(());
         }
@@ -78,15 +101,7 @@ fn set_times(
     if !INVALID.load(SeqCst) {
         let p = CString::new(p.as_os_str().as_bytes())?;
         let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
-        let rc = unsafe {
-            libc::syscall(
-                libc::SYS_utimensat,
-                libc::AT_FDCWD,
-                p.as_ptr(),
-                times.as_ptr(),
-                flags,
-            )
-        };
+        let rc = unsafe { libc::utimensat(libc::AT_FDCWD, p.as_ptr(), times.as_ptr(), flags) };
         if rc == 0 {
             return Ok(());
         }
