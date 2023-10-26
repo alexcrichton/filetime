@@ -46,14 +46,17 @@ jobs:
       run: rustup update stable && rustup default stable && rustup component add rustfmt
     - run: cargo fmt -- --check
 
-  android_build:
-    name: Android build
+  build:
+    name: Build for Android and Redox
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64-linux-android, x86_64-unknown-redox]
     steps:
     - uses: actions/checkout@master
     - name: Install Rust
-      run: rustup update stable && rustup default stable && rustup target add x86_64-linux-android
-    - run: cargo build --target x86_64-linux-android
+      run: rustup update stable && rustup default stable && rustup target add ${{ matrix.target }}
+    - run: cargo build --target ${{ matrix.target }}
 
   publish_docs:
     name: Publish Documentation
