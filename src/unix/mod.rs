@@ -85,34 +85,17 @@ pub fn from_last_access_time(meta: &fs::Metadata) -> FileTime {
 }
 
 pub fn from_creation_time(meta: &fs::Metadata) -> Option<FileTime> {
-    macro_rules! birthtim {
-        ($(($e:expr, $i:ident)),*) => {
-            #[cfg(any($(target_os = $e),*))]
-            fn imp(meta: &fs::Metadata) -> Option<FileTime> {
-                $(
-                    #[cfg(target_os = $e)]
-                    use std::os::$i::fs::MetadataExt;
-                )*
-                Some(FileTime {
-                    seconds: meta.st_birthtime(),
-                    nanos: meta.st_birthtime_nsec() as u32,
-                })
-            }
-
-            #[cfg(all($(not(target_os = $e)),*))]
-            fn imp(_meta: &fs::Metadata) -> Option<FileTime> {
-                None
-            }
-        }
+    #[cfg(target_os = "bitrig")]
+    {
+        use std::os::bitrig::fs::MetadataExt;
+        Some(FileTime {
+            seconds: meta.st_birthtime(),
+            nanos: meta.st_birthtime_nsec() as u32,
+        })
     }
 
-    birthtim! {
-        ("bitrig", bitrig),
-        ("freebsd", freebsd),
-        ("ios", ios),
-        ("macos", macos),
-        ("openbsd", openbsd)
+    #[cfg(not(target_os = "bitrig"))]
+    {
+        meta.created().map(|i| i.into()).ok()
     }
-
-    imp(meta)
 }
