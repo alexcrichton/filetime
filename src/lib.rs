@@ -40,6 +40,9 @@ use std::io;
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 cfg_if::cfg_if! {
     if #[cfg(target_os = "redox")] {
         #[path = "redox.rs"]
@@ -62,6 +65,7 @@ cfg_if::cfg_if! {
 /// same meaning across platforms, but comparisons and stringification can be
 /// significant among the same platform.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Copy, Clone, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FileTime {
     seconds: i64,
     nanos: u32,
