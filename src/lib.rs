@@ -253,13 +253,7 @@ pub fn set_file_times_now<P>(p: P, follow_symlink: bool) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
-    // FIXME
-    let time = FileTime::now();
-    if follow_symlink {
-        imp::set_file_times(p.as_ref(), time, time)
-    } else {
-        imp::set_symlink_file_times(p.as_ref(), time, time)
-    }
+    imp::set_file_times_now(p.as_ref(), follow_symlink)
 }
 
 /// Set the last access and modification times for a file handle.
@@ -287,8 +281,7 @@ pub fn set_file_handle_times(
 /// syscall is required to convinve the kernel to update atime/mtime of files
 /// owned by other users.
 pub fn set_file_handle_times_now(f: &fs::File) -> io::Result<()> {
-    let time = FileTime::now();
-    imp::set_file_handle_times(f, Some(time), Some(time)) // FIXME
+    imp::set_file_handle_times_now(f)
 }
 
 /// Set the last access and modification times for a file on the filesystem.

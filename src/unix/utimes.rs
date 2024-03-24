@@ -11,6 +11,17 @@ pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<
 }
 
 #[allow(dead_code)]
+pub fn set_file_times_now(p: &Path, follow_symlink: bool) -> io::Result<()> {
+    let time = FileTime::now();
+    // TODO: Do the same trick as on Linux?
+    if follow_symlink {
+        set_file_times(p, time, time)
+    } else {
+        set_symlink_file_times(p, time, time)
+    }
+}
+
+#[allow(dead_code)]
 pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
     set_times(p, None, Some(mtime), false)
 }
@@ -58,6 +69,12 @@ pub fn set_file_handle_times(
     } else {
         Err(io::Error::last_os_error())
     };
+}
+
+#[allow(dead_code)]
+pub fn set_file_handle_times_now(f: &fs::File) -> io::Result<()> {
+    let time = FileTime::now();
+    set_file_handle_times(f, Some(time), Some(time)) // TODO: Do the same trick as on Linux?
 }
 
 fn get_times(
