@@ -4,18 +4,38 @@ use std::fs::File;
 use std::io;
 use std::os::unix::prelude::*;
 use std::path::Path;
+use std::ptr;
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     set_times(p, Some(atime), Some(mtime), false)
 }
 
 pub fn set_file_times_now(p: &Path, follow_symlink: bool) -> io::Result<()> {
-    let time = FileTime::now();
-    // TODO: Do the same trick as on Linux?
-    if follow_symlink {
-        set_file_times(p, time, time)
+    let flags = if !follow_symlink {
+        if cfg!(target_os = "emscripten") {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "emscripten does not support utimensat for symlinks",
+            ));
+        }
+        libc::AT_SYMLINK_NOFOLLOW
     } else {
-        set_symlink_file_times(p, time, time)
+        0
+    };
+
+    let p = CString::new(p.as_os_str().as_bytes())?;
+    let rc = unsafe {
+        libc::utimensat(
+            libc::AT_FDCWD,
+            p.as_ptr(),
+            ptr::null::<libc::timespec>(),
+            flags,
+        )
+    };
+    if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
     }
 }
 
@@ -42,8 +62,12 @@ pub fn set_file_handle_times(
 }
 
 pub fn set_file_handle_times_now(f: &File) -> io::Result<()> {
-    let time = FileTime::now();
-    set_file_handle_times(f, Some(time), Some(time)) // TODO: Do the same trick as on Linux?
+    let rc = unsafe { libc::futimens(f.as_raw_fd(), ptr::null::<libc::timespec>()) };
+    if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
 }
 
 pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
