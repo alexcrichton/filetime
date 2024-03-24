@@ -239,6 +239,29 @@ where
     imp::set_file_times(p.as_ref(), atime, mtime)
 }
 
+/// Set the last access and modification times for a file on the filesystem to "now".
+/// If `follow_symlinks` is true, then this function follows symlinks; otherwise,
+/// it operates on the file itself, even if it is a symlink.
+///
+/// This function will set the `atime` and `mtime` metadata fields for a file
+/// on the local filesystem, returning any error encountered.
+///
+/// This is not just a convenience function; on unix, a special form of the
+/// syscall is required to convince the kernel to update atime/mtime of files
+/// owned by other users.
+pub fn set_file_times_now<P>(p: P, follow_symlink: bool) -> io::Result<()>
+where
+    P: AsRef<Path>,
+{
+    // FIXME
+    let time = FileTime::now();
+    if follow_symlink {
+        imp::set_file_times(p.as_ref(), time, time)
+    } else {
+        imp::set_symlink_file_times(p.as_ref(), time, time)
+    }
+}
+
 /// Set the last access and modification times for a file handle.
 ///
 /// This function will either or both of  the `atime` and `mtime` metadata
@@ -251,6 +274,21 @@ pub fn set_file_handle_times(
     mtime: Option<FileTime>,
 ) -> io::Result<()> {
     imp::set_file_handle_times(f, atime, mtime)
+}
+
+/// Set the last access and modification times for a file handle to "now".
+///
+/// This function will either or both of  the `atime` and `mtime` metadata
+/// fields for a file handle , returning any error encountered. If `None` is
+/// specified then the time won't be updated. If `None` is specified for both
+/// options then no action is taken.
+///
+/// This is not just a convenience function; on unix, a special form of the
+/// syscall is required to convinve the kernel to update atime/mtime of files
+/// owned by other users.
+pub fn set_file_handle_times_now(f: &fs::File) -> io::Result<()> {
+    let time = FileTime::now();
+    imp::set_file_handle_times(f, Some(time), Some(time)) // FIXME
 }
 
 /// Set the last access and modification times for a file on the filesystem.
@@ -302,8 +340,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        set_file_atime, set_file_handle_times, set_file_mtime, set_file_times,
-        set_symlink_file_times, FileTime,
+        set_file_atime, set_file_handle_times, set_file_handle_times_now, set_file_mtime,
+        set_file_times, set_file_times_now, set_symlink_file_times, FileTime,
     };
     use std::fs::{self, File};
     use std::io;
@@ -483,6 +521,62 @@ mod tests {
         let metadata = fs::symlink_metadata(&spath)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         assert_eq!(mtime, smtime);
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(unix)]
+    // TODO: Do Android and MacOS implement this feature of utimensat?
+    #[cfg(not(target_os = "android"))]
+    #[cfg(not(target_os = "macos"))]
+    fn set_root_file_path_times_test() -> io::Result<()> {
+        // Need a root-owned all-writable file while we execute as non-root.
+        // Thankfully, /dev/null is such a file, and is universally present!
+        let path = Path::new("/dev/null");
+
+        let old_metadata = fs::metadata(&path)?;
+        let old_mtime = FileTime::from_last_modification_time(&old_metadata);
+        let old_atime = FileTime::from_last_access_time(&old_metadata);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        set_file_times_now(&path, true)?;
+        let new_metadata = fs::metadata(&path)?;
+        let new_mtime = FileTime::from_last_modification_time(&new_metadata);
+        let new_atime = FileTime::from_last_access_time(&new_metadata);
+        // It is possible that something else updated the atime/mtime, so this
+        // test has false negatives (i.e. might succeed when it's supposed to
+        // fail). Note that this should not mean that the test is flaky.
+        assert!(old_mtime < new_mtime, "modification should be updated");
+        assert!(old_atime < new_atime, "access should be updated");
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(unix)]
+    // TODO: Do Android and MacOS implement this feature of futimens?
+    #[cfg(not(target_os = "android"))]
+    #[cfg(not(target_os = "macos"))]
+    fn set_root_file_handle_times_test() -> io::Result<()> {
+        // Need a root-owned all-writable file while we execute as non-root.
+        // Thankfully, /dev/null is such a file, and is universally present!
+        let path = Path::new("/dev/null");
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .truncate(false)
+            .open(path)?;
+
+        let old_metadata = fs::metadata(&path)?;
+        let old_mtime = FileTime::from_last_modification_time(&old_metadata);
+        let old_atime = FileTime::from_last_access_time(&old_metadata);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        set_file_handle_times_now(&file)?;
+        let new_metadata = fs::metadata(&path)?;
+        let new_mtime = FileTime::from_last_modification_time(&new_metadata);
+        let new_atime = FileTime::from_last_access_time(&new_metadata);
+        // It is possible that something else updated the atime/mtime, so this
+        // test has false negatives (i.e. might succeed when it's supposed to
+        // fail). Note that this should not mean that the test is flaky.
+        assert!(old_mtime < new_mtime, "modification should be updated");
+        assert!(old_atime < new_atime, "access should be updated");
         Ok(())
     }
 
