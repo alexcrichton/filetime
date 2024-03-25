@@ -7,6 +7,10 @@ pub fn set_file_times(_p: &Path, _atime: FileTime, _mtime: FileTime) -> io::Resu
     Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
 }
 
+pub fn set_file_times_now(p: &Path, follow_symlink: bool) -> io::Result<()> {
+    Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
+}
+
 pub fn set_symlink_file_times(_p: &Path, _atime: FileTime, _mtime: FileTime) -> io::Result<()> {
     Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
 }
@@ -36,5 +40,9 @@ pub fn set_file_handle_times(
     _atime: Option<FileTime>,
     _mtime: Option<FileTime>,
 ) -> io::Result<()> {
+    Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
+}
+
+pub fn set_file_handle_times_now(_f: &File) -> io::Result<()> {
     Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
 }

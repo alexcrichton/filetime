@@ -15,6 +15,15 @@ pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<
     set_file_times_redox(fd.raw(), atime, mtime)
 }
 
+pub fn set_file_times_now(p: &Path, follow_symlink: bool) -> io::Result<()> {
+    let time = FileTime::now();
+    if follow_symlink {
+        set_file_times(p, time, time)
+    } else {
+        set_symlink_file_times(p, time, time)
+    }
+}
+
 pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
     let fd = open_redox(p, 0)?;
     let st = fd.stat()?;
@@ -69,6 +78,11 @@ pub fn set_file_handle_times(
         }
     };
     set_file_times_redox(f.as_raw_fd() as usize, atime1, mtime1)
+}
+
+pub fn set_file_handle_times_now(f: &File) -> io::Result<()> {
+    let time = FileTime::now();
+    set_file_handle_times(f, Some(time), Some(time))
 }
 
 fn open_redox(path: &Path, flags: i32) -> Result<Fd> {

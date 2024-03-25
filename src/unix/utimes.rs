@@ -4,10 +4,28 @@ use std::fs;
 use std::io;
 use std::os::unix::prelude::*;
 use std::path::Path;
+use std::ptr;
 
 #[allow(dead_code)]
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     set_times(p, Some(atime), Some(mtime), false)
+}
+
+#[allow(dead_code)]
+pub fn set_file_times_now(p: &Path, follow_symlink: bool) -> io::Result<()> {
+    let p = CString::new(p.as_os_str().as_bytes())?;
+    let rc = unsafe {
+        if !follow_symlink {
+            libc::lutimes(p.as_ptr(), ptr::null::<libc::timeval>())
+        } else {
+            libc::utimes(p.as_ptr(), ptr::null::<libc::timeval>())
+        }
+    };
+    return if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    };
 }
 
 #[allow(dead_code)]
@@ -53,6 +71,28 @@ pub fn set_file_handle_times(
     };
     let times = [to_timespec(&atime), to_timespec(&mtime)];
     let rc = unsafe { libc::futimens(f.as_raw_fd(), times.as_ptr()) };
+    return if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    };
+}
+
+#[cfg(not(target_env = "uclibc"))]
+#[allow(dead_code)]
+pub fn set_file_handle_times_now(f: &fs::File) -> io::Result<()> {
+    let rc = unsafe { libc::futimes(f.as_raw_fd(), ptr::null::<libc::timeval>()) };
+    return if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    };
+}
+
+#[cfg(target_env = "uclibc")]
+#[allow(dead_code)]
+pub fn set_file_handle_times_now(f: &fs::File) -> io::Result<()> {
+    let rc = unsafe { libc::futimens(f.as_raw_fd(), ptr::null::<libc::timespec>()) };
     return if rc == 0 {
         Ok(())
     } else {

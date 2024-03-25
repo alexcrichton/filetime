@@ -15,6 +15,15 @@ pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<
     set_file_handle_times(&f, Some(atime), Some(mtime))
 }
 
+pub fn set_file_times_now(p: &Path, follow_symlink: bool) -> io::Result<()> {
+    let time = FileTime::now();
+    if follow_symlink {
+        set_file_times(p, time, time)
+    } else {
+        set_symlink_file_times(p, time, time)
+    }
+}
+
 pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
     let f = OpenOptions::new()
         .write(true)
@@ -65,6 +74,11 @@ pub fn set_file_handle_times(
             dwHighDateTime: (intervals >> 32) as u32,
         }
     }
+}
+
+pub fn set_file_handle_times_now(f: &File) -> io::Result<()> {
+    let time = FileTime::now();
+    set_file_handle_times(f, Some(time), Some(time))
 }
 
 pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {

@@ -16,6 +16,39 @@ pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<
     set_times(p, Some(atime), Some(mtime), false)
 }
 
+pub fn set_file_times_now(p: &Path, follow_symlink: bool) -> io::Result<()> {
+    let flags = if !follow_symlink {
+        libc::AT_SYMLINK_NOFOLLOW
+    } else {
+        0
+    };
+
+    // Same as `set_file_handle_times` below.
+    static INVALID: AtomicBool = AtomicBool::new(false);
+    if !INVALID.load(SeqCst) {
+        let p = CString::new(p.as_os_str().as_bytes())?;
+        let rc = unsafe {
+            libc::utimensat(
+                libc::AT_FDCWD,
+                p.as_ptr(),
+                ptr::null::<libc::timespec>(),
+                flags,
+            )
+        };
+        if rc == 0 {
+            return Ok(());
+        }
+        let err = io::Error::last_os_error();
+        if err.raw_os_error() == Some(libc::ENOSYS) {
+            INVALID.store(true, SeqCst);
+        } else {
+            return Err(err);
+        }
+    }
+
+    super::utimes::set_file_times_now(p, follow_symlink)
+}
+
 pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
     set_times(p, None, Some(mtime), false)
 }
@@ -80,6 +113,59 @@ pub fn set_file_handle_times(
     super::utimes::set_file_handle_times(f, atime, mtime)
 }
 
+pub fn set_file_handle_times_now(f: &fs::File) -> io::Result<()> {
+    eprintln!("Begin linux::set_file_handle_times_now");
+    // Same as `set_file_handle_times` above.
+    static INVALID: AtomicBool = AtomicBool::new(false);
+    if !INVALID.load(SeqCst) {
+        // We normally use a syscall because the `utimensat` function is documented
+        // as not accepting a file descriptor in the first argument (even though, on
+        // Linux, the syscall itself can accept a file descriptor there).
+        #[cfg(not(target_env = "musl"))]
+        let rc = unsafe {
+            eprintln!("linux::set_file_handle_times_now calling non-musl thing");
+            libc::syscall(
+                libc::SYS_utimensat,
+                f.as_raw_fd(),
+                ptr::null::<libc::c_char>(),
+                ptr::null::<libc::timespec>(),
+                0,
+            )
+        };
+        // However, on musl, we call the musl libc function instead. This is because
+        // on newer musl versions starting with musl 1.2, `timespec` is always a 64-bit
+        // value even on 32-bit targets. As a result, musl internally converts their
+        // `timespec` values to the correct ABI before invoking the syscall. Since we
+        // use `timespec` from the libc crate, it matches musl's definition and not
+        // the Linux kernel's version (for some platforms) so we must use musl's
+        // `utimensat` function to properly convert the value. musl's `utimensat`
+        // function allows file descriptors in the path argument so this is fine.
+        #[cfg(target_env = "musl")]
+        let rc = unsafe {
+            libc::utimensat(
+                f.as_raw_fd(),
+                ptr::null::<libc::c_char>(),
+                ptr::null::<libc::timespec>(),
+                0,
+            )
+        };
+
+        eprintln!("linux::set_file_handle_times_now inner done");
+        if rc == 0 {
+            return Ok(());
+        }
+        let err = io::Error::last_os_error();
+        if err.raw_os_error() == Some(libc::ENOSYS) {
+            INVALID.store(true, SeqCst);
+        } else {
+            return Err(err);
+        }
+    }
+
+    eprintln!("linux::set_file_handle_times_now FALLING BACK!!!");
+    super::utimes::set_file_handle_times_now(f)
+}
+
 pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     set_times(p, Some(atime), Some(mtime), true)
 }
@@ -96,7 +182,7 @@ fn set_times(
         0
     };
 
-    // Same as the `if` statement above.
+    // Same as `set_file_handle_times` above.
     static INVALID: AtomicBool = AtomicBool::new(false);
     if !INVALID.load(SeqCst) {
         let p = CString::new(p.as_os_str().as_bytes())?;
