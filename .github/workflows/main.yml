@@ -36,6 +36,7 @@ jobs:
       run: rustup update ${{ matrix.rust }} --no-self-update && rustup default ${{ matrix.rust }}
       shell: bash
     - run: cargo test
+    - run: cargo +nightly update -Zminimal-versions && cargo test
 
   rustfmt:
     name: Rustfmt
