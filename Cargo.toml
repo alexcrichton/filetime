@@ -19,13 +19,6 @@ cfg-if = "1.0.0"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.27"
 
-[target.'cfg(windows)'.dependencies.windows-sys]
-version = "0.60.0"
-features = [
-    "Win32_Foundation",
-    "Win32_Storage_FileSystem"
-]
-
 [target.'cfg(target_os = "redox")'.dependencies]
 libredox = "0.1.0"
 

@@ -4,8 +4,27 @@ use std::io;
 use std::os::windows::prelude::*;
 use std::path::Path;
 use std::ptr;
-use windows_sys::Win32::Foundation::{FILETIME, HANDLE};
-use windows_sys::Win32::Storage::FileSystem::*;
+
+#[repr(C)]
+#[allow(non_snake_case)]
+struct FILETIME {
+    pub dwLowDateTime: u32,
+    pub dwHighDateTime: u32,
+}
+
+type HANDLE = *mut core::ffi::c_void;
+type BOOL = i32;
+const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x2000000;
+const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x200000;
+
+extern "system" {
+    fn SetFileTime(
+        hfile: HANDLE,
+        lpcreationtime: *const FILETIME,
+        lplastaccesstime: *const FILETIME,
+        lplastwritetime: *const FILETIME,
+    ) -> BOOL;
+}
 
 pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
     let f = OpenOptions::new()
