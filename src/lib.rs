@@ -12,6 +12,8 @@
 //! filetime = "0.2"
 //! ```
 //!
+//! With the `jiff` feature enabled, you can convert between `FileTime` and `jiff::Timestamp`.
+//!
 //! # Usage
 //!
 //! ```no_run
@@ -55,6 +57,9 @@ cfg_if::cfg_if! {
         mod imp;
     }
 }
+
+#[cfg(feature = "jiff")]
+mod jiff;
 
 /// A helper structure to represent a timestamp for a file.
 ///

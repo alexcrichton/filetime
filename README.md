@@ -13,6 +13,8 @@ platform-independent representation.
 filetime = "0.2"
 ```
 
+With the `jiff` feature enabled, you can convert between `FileTime` and `jiff::Timestamp`.
+
 # Advantages over using `std::fs::Metadata`
 
 This library includes the ability to set this data, which std does not.
