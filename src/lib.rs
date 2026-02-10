@@ -228,6 +228,18 @@ impl From<SystemTime> for FileTime {
     }
 }
 
+impl From<FileTime> for SystemTime {
+    fn from(time: FileTime) -> SystemTime {
+        let seconds = time.unix_seconds();
+        if seconds < 0 {
+            SystemTime::UNIX_EPOCH - Duration::from_secs(-seconds as u64)
+                + Duration::from_nanos(time.nanoseconds() as u64)
+        } else {
+            SystemTime::UNIX_EPOCH + Duration::new(seconds as u64, time.nanoseconds())
+        }
+    }
+}
+
 /// Set the last access and modification times for a file on the filesystem.
 ///
 /// This function will set the `atime` and `mtime` metadata fields for a file
@@ -385,42 +397,58 @@ mod tests {
 
     #[test]
     #[cfg(windows)]
-    fn from_system_time_test() {
-        let time = FileTime::from_system_time(UNIX_EPOCH + Duration::from_secs(10));
+    fn to_from_system_time_test() {
+        let systime = UNIX_EPOCH + Duration::from_secs(10);
+        let time = FileTime::from_system_time(systime);
         assert_eq!(11644473610, time.seconds);
         assert_eq!(0, time.nanos);
+        assert_eq!(systime, time.into());
 
-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(10));
+        let systime = UNIX_EPOCH - Duration::from_secs(10);
+        let time = FileTime::from_system_time(systime);
         assert_eq!(11644473590, time.seconds);
         assert_eq!(0, time.nanos);
+        assert_eq!(systime, time.into());
 
-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_millis(1100));
+        let systime = UNIX_EPOCH - Duration::from_millis(1100);
+        let time = FileTime::from_system_time(systime);
         assert_eq!(11644473598, time.seconds);
         assert_eq!(900_000_000, time.nanos);
+        assert_eq!(systime, time.into());
 
-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(12_000_000_000));
+        let systime = UNIX_EPOCH - Duration::from_secs(12_000_000_000);
+        let time = FileTime::from_system_time(systime);
         assert_eq!(-355526400, time.seconds);
         assert_eq!(0, time.nanos);
+        assert_eq!(systime, time.into());
     }
 
     #[test]
     #[cfg(not(windows))]
-    fn from_system_time_test() {
-        let time = FileTime::from_system_time(UNIX_EPOCH + Duration::from_secs(10));
+    fn to_from_system_time_test() {
+        let systime = UNIX_EPOCH + Duration::from_secs(10);
+        let time = FileTime::from_system_time(systime);
         assert_eq!(10, time.seconds);
         assert_eq!(0, time.nanos);
+        assert_eq!(systime, time.into());
 
-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(10));
+        let systime = UNIX_EPOCH - Duration::from_secs(10);
+        let time = FileTime::from_system_time(systime);
         assert_eq!(-10, time.seconds);
         assert_eq!(0, time.nanos);
+        assert_eq!(systime, time.into());
 
-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_millis(1100));
+        let systime = UNIX_EPOCH - Duration::from_millis(1100);
+        let time = FileTime::from_system_time(systime);
         assert_eq!(-2, time.seconds);
         assert_eq!(900_000_000, time.nanos);
+        assert_eq!(systime, time.into());
 
-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(12_000_000));
+        let systime = UNIX_EPOCH - Duration::from_secs(12_000_000);
+        let time = FileTime::from_system_time(systime);
         assert_eq!(-12_000_000, time.seconds);
         assert_eq!(0, time.nanos);
+        assert_eq!(systime, time.into());
     }
 
     #[test]
