@@ -18,6 +18,7 @@ cfg_if::cfg_if! {
         mod macos;
         pub use self::macos::*;
     } else if #[cfg(any(target_os = "aix",
+                        target_os = "nto",
                         target_os = "solaris",
                         target_os = "illumos",
                         target_os = "emscripten",
