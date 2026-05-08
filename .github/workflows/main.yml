@@ -37,6 +37,15 @@ jobs:
       shell: bash
     - run: cargo test
 
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: Install Rust
+      run: rustup update 1.75.0 && rustup default 1.75.0
+    - run: cargo build
+
   rustfmt:
     name: Rustfmt
     runs-on: ubuntu-latest

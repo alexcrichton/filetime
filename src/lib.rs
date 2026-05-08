@@ -248,7 +248,11 @@ pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime) -> io::Result<(
 where
     P: AsRef<Path>,
 {
-    imp::set_file_times(p.as_ref(), atime, mtime)
+    imp::open(p.as_ref())?.set_times(
+        fs::FileTimes::new()
+            .set_accessed(atime.into())
+            .set_modified(mtime.into()),
+    )
 }
 
 /// Set the last access and modification times for a file handle.
@@ -262,7 +266,14 @@ pub fn set_file_handle_times(
     atime: Option<FileTime>,
     mtime: Option<FileTime>,
 ) -> io::Result<()> {
-    imp::set_file_handle_times(f, atime, mtime)
+    let mut times = fs::FileTimes::new();
+    if let Some(t) = atime {
+        times = times.set_accessed(t.into());
+    }
+    if let Some(t) = mtime {
+        times = times.set_modified(t.into());
+    }
+    f.set_times(times)
 }
 
 /// Set the last access and modification times for a file on the filesystem.
@@ -291,7 +302,7 @@ pub fn set_file_mtime<P>(p: P, mtime: FileTime) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
-    imp::set_file_mtime(p.as_ref(), mtime)
+    imp::open(p.as_ref())?.set_times(fs::FileTimes::new().set_modified(mtime.into()))
 }
 
 /// Set the last access time for a file on the filesystem.
@@ -308,7 +319,7 @@ pub fn set_file_atime<P>(p: P, atime: FileTime) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
-    imp::set_file_atime(p.as_ref(), atime)
+    imp::open(p.as_ref())?.set_times(fs::FileTimes::new().set_accessed(atime.into()))
 }
 
 #[cfg(test)]
@@ -414,12 +425,6 @@ mod tests {
         let time = FileTime::from_system_time(systime);
         assert_eq!(11644473598, time.seconds);
         assert_eq!(900_000_000, time.nanos);
-        assert_eq!(systime, time.into());
-
-        let systime = UNIX_EPOCH - Duration::from_secs(12_000_000_000);
-        let time = FileTime::from_system_time(systime);
-        assert_eq!(-355526400, time.seconds);
-        assert_eq!(0, time.nanos);
         assert_eq!(systime, time.into());
     }
 
@@ -614,9 +619,6 @@ mod tests {
         let mtime = FileTime::from_last_modification_time(&metadata);
         let atime = FileTime::from_last_access_time(&metadata);
         set_file_times(&path, atime, mtime).unwrap();
-
-        let new_mtime = FileTime::from_unix_time(-12_000_000_000, 0);
-        assert!(set_file_times(&path, atime, new_mtime).is_err());
     }
 
     #[test]

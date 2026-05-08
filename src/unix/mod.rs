@@ -1,7 +1,9 @@
 use crate::FileTime;
 use libc::{time_t, timespec, UTIME_OMIT};
 use std::fs;
+use std::io;
 use std::os::unix::prelude::*;
+use std::path::Path;
 
 cfg_if::cfg_if! {
     if #[cfg(target_os = "linux")] {
@@ -60,17 +62,9 @@ pub fn from_last_access_time(meta: &fs::Metadata) -> FileTime {
 }
 
 pub fn from_creation_time(meta: &fs::Metadata) -> Option<FileTime> {
-    #[cfg(target_os = "bitrig")]
-    {
-        use std::os::bitrig::fs::MetadataExt;
-        Some(FileTime {
-            seconds: meta.st_birthtime(),
-            nanos: meta.st_birthtime_nsec() as u32,
-        })
-    }
+    meta.created().map(|i| i.into()).ok()
+}
 
-    #[cfg(not(target_os = "bitrig"))]
-    {
-        meta.created().map(|i| i.into()).ok()
-    }
+pub fn open(path: &Path) -> io::Result<fs::File> {
+    fs::File::open(path)
 }
