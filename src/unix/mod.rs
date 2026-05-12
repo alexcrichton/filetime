@@ -67,5 +67,7 @@ pub fn from_creation_time(meta: &fs::Metadata) -> Option<FileTime> {
 }
 
 pub fn open(path: &Path) -> io::Result<fs::File> {
-    fs::File::open(path)
+    // Try a read-only open, but if that fails try a write-only open, and if
+    // that fails then give up.
+    fs::File::open(path).or_else(|_| fs::OpenOptions::new().write(true).open(path))
 }
