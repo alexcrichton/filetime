@@ -27,4 +27,5 @@ tempfile = "3"
 level = "warn"
 check-cfg = [
   'cfg(emulate_second_only_system)',
+  'cfg(rust_199)',
 ]

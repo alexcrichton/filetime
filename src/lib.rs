@@ -41,7 +41,9 @@ use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 cfg_if::cfg_if! {
-    if #[cfg(target_os = "redox")] {
+    if #[cfg(rust_199)] {
+        // Everything is implemented with `std`.
+    } else if #[cfg(target_os = "redox")] {
         #[path = "redox.rs"]
         mod imp;
     } else if #[cfg(windows)] {
@@ -131,8 +133,12 @@ impl FileTime {
     ///
     /// The returned value corresponds to the `mtime` field of `stat` on Unix
     /// platforms and the `ftLastWriteTime` field on Windows platforms.
+    #[cfg_attr(
+        rust_199,
+        deprecated(note = "use `std::fs::Metadata::modified` instead")
+    )]
     pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
-        imp::from_last_modification_time(meta).emulate_second_only_system()
+        FileTime::from_system_time(meta.modified().unwrap())
     }
 
     /// Creates a new timestamp from the last access time listed in the
@@ -140,8 +146,12 @@ impl FileTime {
     ///
     /// The returned value corresponds to the `atime` field of `stat` on Unix
     /// platforms and the `ftLastAccessTime` field on Windows platforms.
+    #[cfg_attr(
+        rust_199,
+        deprecated(note = "use `std::fs::Metadata::accessed` instead")
+    )]
     pub fn from_last_access_time(meta: &fs::Metadata) -> FileTime {
-        imp::from_last_access_time(meta).emulate_second_only_system()
+        FileTime::from_system_time(meta.accessed().unwrap())
     }
 
     /// Creates a new timestamp from the creation time listed in the specified
@@ -151,8 +161,12 @@ impl FileTime {
     /// Unix platforms and the `ftCreationTime` field on Windows platforms. Note
     /// that not all Unix platforms have this field available and may return
     /// `None` in some circumstances.
+    #[cfg_attr(
+        rust_199,
+        deprecated(note = "use `std::fs::Metadata::created` instead")
+    )]
     pub fn from_creation_time(meta: &fs::Metadata) -> Option<FileTime> {
-        imp::from_creation_time(meta).map(|x| x.emulate_second_only_system())
+        meta.created().ok().map(FileTime::from_system_time)
     }
 
     /// Creates a new timestamp from the given SystemTime.
@@ -244,15 +258,29 @@ impl From<FileTime> for SystemTime {
 ///
 /// This function will set the `atime` and `mtime` metadata fields for a file
 /// on the local filesystem, returning any error encountered.
+#[cfg_attr(rust_199, deprecated(note = "use `std::fs::set_times` instead"))]
 pub fn set_file_times<P>(p: P, atime: FileTime, mtime: FileTime) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
-    imp::open(p.as_ref())?.set_times(
+    set_path_times(
+        p.as_ref(),
         fs::FileTimes::new()
             .set_accessed(atime.into())
             .set_modified(mtime.into()),
     )
+}
+
+/// Sets `times` on the file at `p`, following symlinks.
+fn set_path_times(p: &Path, times: fs::FileTimes) -> io::Result<()> {
+    #[cfg(rust_199)]
+    {
+        fs::set_times(p, times)
+    }
+    #[cfg(not(rust_199))]
+    {
+        imp::open(p)?.set_times(times)
+    }
 }
 
 /// Set the last access and modification times for a file handle.
@@ -261,6 +289,7 @@ where
 /// fields for a file handle , returning any error encountered. If `None` is
 /// specified then the time won't be updated. If `None` is specified for both
 /// options then no action is taken.
+#[cfg_attr(rust_199, deprecated(note = "use `std::fs::File::set_times` instead"))]
 pub fn set_file_handle_times(
     f: &fs::File,
     atime: Option<FileTime>,
@@ -281,11 +310,27 @@ pub fn set_file_handle_times(
 ///
 /// This function will set the `atime` and `mtime` metadata fields for a file
 /// on the local filesystem, returning any error encountered.
+#[cfg_attr(
+    rust_199,
+    deprecated(note = "use `std::fs::set_times_nofollow` instead")
+)]
 pub fn set_symlink_file_times<P>(p: P, atime: FileTime, mtime: FileTime) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
-    imp::set_symlink_file_times(p.as_ref(), atime, mtime)
+    #[cfg(rust_199)]
+    {
+        fs::set_times_nofollow(
+            p.as_ref(),
+            fs::FileTimes::new()
+                .set_accessed(atime.into())
+                .set_modified(mtime.into()),
+        )
+    }
+    #[cfg(not(rust_199))]
+    {
+        imp::set_symlink_file_times(p.as_ref(), atime, mtime)
+    }
 }
 
 /// Set the last modification time for a file on the filesystem.
@@ -298,11 +343,15 @@ where
 /// Where supported this will attempt to issue just one syscall to update only
 /// the `mtime`, but where not supported this may issue one syscall to learn the
 /// existing `atime` so only the `mtime` can be configured.
+#[cfg_attr(
+    rust_199,
+    deprecated(note = "use `std::fs::set_times` with `FileTimes::set_modified` instead")
+)]
 pub fn set_file_mtime<P>(p: P, mtime: FileTime) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
-    imp::open(p.as_ref())?.set_times(fs::FileTimes::new().set_modified(mtime.into()))
+    set_path_times(p.as_ref(), fs::FileTimes::new().set_modified(mtime.into()))
 }
 
 /// Set the last access time for a file on the filesystem.
@@ -315,14 +364,19 @@ where
 /// Where supported this will attempt to issue just one syscall to update only
 /// the `atime`, but where not supported this may issue one syscall to learn the
 /// existing `mtime` so only the `atime` can be configured.
+#[cfg_attr(
+    rust_199,
+    deprecated(note = "use `std::fs::set_times` with `FileTimes::set_accessed` instead")
+)]
 pub fn set_file_atime<P>(p: P, atime: FileTime) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
-    imp::open(p.as_ref())?.set_times(fs::FileTimes::new().set_accessed(atime.into()))
+    set_path_times(p.as_ref(), fs::FileTimes::new().set_accessed(atime.into()))
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::{
         set_file_atime, set_file_handle_times, set_file_mtime, set_file_times,

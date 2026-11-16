@@ -2,7 +2,6 @@ use crate::FileTime;
 use libc::{time_t, timespec, UTIME_OMIT};
 use std::fs;
 use std::io;
-use std::os::unix::prelude::*;
 use std::path::Path;
 
 cfg_if::cfg_if! {
@@ -46,24 +45,6 @@ fn to_timespec(ft: &Option<FileTime>) -> timespec {
     }
 
     ts
-}
-
-pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
-    FileTime {
-        seconds: meta.mtime(),
-        nanos: meta.mtime_nsec() as u32,
-    }
-}
-
-pub fn from_last_access_time(meta: &fs::Metadata) -> FileTime {
-    FileTime {
-        seconds: meta.atime(),
-        nanos: meta.atime_nsec() as u32,
-    }
-}
-
-pub fn from_creation_time(meta: &fs::Metadata) -> Option<FileTime> {
-    meta.created().map(|i| i.into()).ok()
 }
 
 pub fn open(path: &Path) -> io::Result<fs::File> {
