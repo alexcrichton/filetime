@@ -246,7 +246,7 @@ impl From<FileTime> for SystemTime {
     fn from(time: FileTime) -> SystemTime {
         let seconds = time.unix_seconds();
         if seconds < 0 {
-            SystemTime::UNIX_EPOCH - Duration::from_secs(-seconds as u64)
+            SystemTime::UNIX_EPOCH - Duration::from_secs(seconds.unsigned_abs())
                 + Duration::from_nanos(time.nanoseconds() as u64)
         } else {
             SystemTime::UNIX_EPOCH + Duration::new(seconds as u64, time.nanoseconds())
@@ -508,6 +508,26 @@ mod tests {
         assert_eq!(-12_000_000, time.seconds);
         assert_eq!(0, time.nanos);
         assert_eq!(systime, time.into());
+    }
+
+    // Windows `SystemTime` can't represent times this far before 1601, so this
+    // is only tested on Unix.
+    #[test]
+    #[cfg(unix)]
+    fn to_system_time_min() {
+        let time = FileTime::from_unix_time(i64::MIN, 0);
+        let systime = std::time::SystemTime::from(time);
+        assert_eq!(
+            UNIX_EPOCH.duration_since(systime).unwrap(),
+            Duration::from_secs(1 << 63)
+        );
+
+        let time = FileTime::from_unix_time(i64::MIN, 500_000_000);
+        let systime = std::time::SystemTime::from(time);
+        assert_eq!(
+            UNIX_EPOCH.duration_since(systime).unwrap(),
+            Duration::from_secs(1 << 63) - Duration::from_millis(500)
+        );
     }
 
     #[test]
