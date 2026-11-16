@@ -796,4 +796,45 @@ mod tests {
             "modification time should not be updated"
         );
     }
+
+    #[test]
+    fn set_readonly_file_times_test() {
+        let td = Builder::new().prefix("filetime").tempdir().unwrap();
+        let path = td.path().join("foo.txt");
+        fs::write(&path, b"contents").unwrap();
+        let mut perms = fs::metadata(&path).unwrap().permissions();
+        perms.set_readonly(true);
+        fs::set_permissions(&path, perms.clone()).unwrap();
+
+        let assert_times = |atime, mtime| {
+            let metadata = fs::metadata(&path).unwrap();
+            assert_eq!(FileTime::from_last_access_time(&metadata), atime);
+            assert_eq!(FileTime::from_last_modification_time(&metadata), mtime);
+            assert!(metadata.permissions().readonly());
+        };
+
+        let atime = FileTime::from_unix_time(10_000, 123_456_700);
+        let mtime = FileTime::from_unix_time(20_000, 234_567_800);
+        set_file_times(&path, atime, mtime).unwrap();
+        assert_times(atime, mtime);
+
+        let atime = FileTime::from_unix_time(30_000, 345_678_900);
+        set_file_atime(&path, atime).unwrap();
+        assert_times(atime, mtime);
+
+        let mtime = FileTime::from_unix_time(40_000, 456_789_100);
+        set_file_mtime(&path, mtime).unwrap();
+        assert_times(atime, mtime);
+
+        let atime = FileTime::from_unix_time(50_000, 567_891_200);
+        let mtime = FileTime::from_unix_time(60_000, 678_912_300);
+        set_symlink_file_times(&path, atime, mtime).unwrap();
+        assert_times(atime, mtime);
+
+        assert_eq!(fs::read(&path).unwrap(), b"contents");
+
+        // Windows can't delete read-only files, so undo that for cleanup.
+        perms.set_readonly(false);
+        fs::set_permissions(&path, perms).unwrap();
+    }
 }
